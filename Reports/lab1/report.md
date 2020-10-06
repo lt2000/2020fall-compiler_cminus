@@ -61,7 +61,7 @@
 
 1.助教提供的testcase验证结果
 
-![image-20201006103711116](/figs/pic.png)
+![image-20201006103711116](./figs/pic.png)
 
 2.增加的testcase
 
