@@ -4,7 +4,7 @@ extern syntax_tree *parse(const char*);
 int main(int argc, char *argv[])
 {
     syntax_tree *tree = NULL;
-    const char *input = NULL;
+    const char *input_file = NULL;
 
     if (argc >= 3) {
         printf("usage: %s\n", argv[0]);
@@ -13,11 +13,11 @@ int main(int argc, char *argv[])
     }
 
     if (argc == 2) {
-        input = argv[1];
+        input_file = argv[1];
     }
 
     // Call the syntax analyzer.
-    tree = parse(input);
+    tree = parse(input_file);
     print_syntax_tree(stdout, tree);
     del_syntax_tree(tree);
     return 0;
