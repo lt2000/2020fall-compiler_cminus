@@ -33,11 +33,11 @@
 
 * easy case
 
-![image-20201025091214036](.\figs\1.png)
+![image-20201025091214036](./figs/1.png)
 
 * normal case
 
-  ​                                  ![](.\figs\2.png)     
+  ​                                  ![](./figs/2.png)     
 
 2.增加的testcase
 
