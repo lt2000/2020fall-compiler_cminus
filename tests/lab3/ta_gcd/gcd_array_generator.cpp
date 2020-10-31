@@ -29,7 +29,7 @@ int main() {
   auto *arrayType = ArrayType::get(Int32Type, 1);
   auto initializer = ConstantZero::get(Int32Type, module);
   auto x = GlobalVariable::create("x", module, arrayType, false, initializer);// 参数解释：  名字name，所属module，全局变量类型type，
-  auto y = GlobalVariable::create("y", module, arrayType, false, initializer);//          是否是常量定义（cminus中没有常量概念，应全都是false），初始化常量(ConstantZero类)
+  auto y = GlobalVariable::create("y", module, arrayType, false, initializer);// 是否是常量定义（cminus中没有常量概念，应全都是false），初始化常量(ConstantZero类)
 
   // gcd函数
   // 函数参数类型的vector
