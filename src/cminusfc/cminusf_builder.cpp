@@ -220,17 +220,185 @@ void CminusfBuilder::visit(ASTCompoundStmt &node) {
      scope.exit();
 }
 
-void CminusfBuilder::visit(ASTExpressionStmt &node) { }
 
-void CminusfBuilder::visit(ASTSelectionStmt &node) { }
+void CminusfBuilder::visit(ASTExpressionStmt &node)
+//expression-stmt→expression ; ∣ ;
+//expression→assign-expression ∣ simple-expression
+{
+    if(node.expression != nullptr){
+        node.expression->accept(*this);
+    }
+}
 
-void CminusfBuilder::visit(ASTIterationStmt &node) { }
+void CminusfBuilder::visit(ASTSelectionStmt &node)
+//selection-stmt→ ​if ( expression ) statement∣ if ( expression ) statement else statement​
+{
+    Type* TYPE32 = Type::get_int32_type(module.get());
+    node.expression->accept(*this);
+    if(ret->get_type()->is_pointer_type())
+        ret = builder->create_load(ret);
+    if(ret->get_type()->is_float_type())
+        ret = builder->create_fptosi(ret,TYPE32);
+    //currentFunction
+    auto currentFunc = builder->get_insert_block()->get_parent();
+    auto flag = builder->create_icmp_ne(ret,CONST_INT(0));
+    auto trueBB = BasicBlock::create(module.get(),"trueBB",currentFunc);
+    auto falseBB = BasicBlock::create(module.get(),"falseBB",currentFunc);
+    auto nextBB = BasicBlock::create(module.get(),"nextBB",currentFunc);
+    auto br = builder->create_cond_br(flag,trueBB,falseBB);
+    int insertedflag = 0;
 
-void CminusfBuilder::visit(ASTReturnStmt &node) { }
+    //tureBB
+    builder->set_insert_point(trueBB); 
+    node.if_statement->accept(*this);
+    if(builder->get_insert_block()->get_terminator() == nullptr)
+    { // no return inside the block
+        insertedflag = 1;
+        builder->create_br(nextBB);
+    }
 
-void CminusfBuilder::visit(ASTVar &node) { }
+    //falseBB
+    builder->set_insert_point(falseBB);
+    if(node.else_statement != nullptr)
+    {
+        node.else_statement->accept(*this);
+        if(builder->get_insert_block()->get_terminator() == nullptr)
+        { // no return inside the block
+            insertedflag = 1;
+            builder->create_br(nextBB);
+        }
+    }
+    else
+        builder->create_br(nextBB);
+    
+    // out
+    builder->set_insert_point(nextBB); 
+    // if(insertedflag) 
+    //     nextBB->get_num_of_instr();
+}
 
-void CminusfBuilder::visit(ASTAssignExpression &node) { }
+void CminusfBuilder::visit(ASTIterationStmt &node)
+//iteration-stmt→while ( expression ) statement
+{
+    Type* TYPE32 = Type::get_int32_type(module.get());
+    //currentFunction
+    auto currentFunc = builder->get_insert_block()->get_parent();
+    auto loopJudge = BasicBlock::create(module.get(), "loopJudge", currentFunc);
+    auto loopBody = BasicBlock::create(module.get(), "loopBody", currentFunc);
+    auto out = BasicBlock::create(module.get(), "outloop", currentFunc);
+    if(builder->get_insert_block()->get_terminator() == nullptr)
+        builder->create_br(loopJudge);
+
+    //loopJudge BB
+    builder->set_insert_point(loopJudge);
+    node.expression->accept(*this);
+    if(ret->get_type()->is_pointer_type())
+        ret = builder->create_load(ret);
+    if(ret->get_type()->is_float_type())
+        ret = builder->create_fptosi(ret,TYPE32);
+    auto flag = builder->create_icmp_ne(ret,CONST_INT(0));
+    builder->create_cond_br(flag,loopBody,out);
+
+    //loopBody BB
+    builder->set_insert_point(loopBody);
+    node.statement->accept(*this);
+    if(builder->get_insert_block()->get_terminator() == nullptr)
+        builder->create_br(loopJudge);
+
+    //outloop BB
+    builder->set_insert_point(out);
+
+}
+void CminusfBuilder::visit(ASTReturnStmt &node)
+//return-stmt→return ; ∣ return expression ;
+{
+    if(node.expression == nullptr)
+    {
+        builder->create_void_ret();
+    }
+    else
+    {
+        node.expression->accept(*this);
+        if(ret->get_type()->is_pointer_type())
+            ret = builder->create_load(ret);
+        builder->create_ret(ret);
+    }
+    
+}
+void CminusfBuilder::visit(ASTVar &node)
+//var→ID ∣ ID [ expression]
+{
+    Type* TYPE32 = Type::get_int32_type(module.get());
+    //currentFunction
+    auto currentFunc = builder->get_insert_block()->get_parent();
+    auto var = scope.find(node.id);
+    if(var)
+    {
+        if(node.expression != nullptr)
+        //id is an array
+        {
+            node.expression->accept(*this);
+            auto num = ret;
+            //transfer num to int
+            if(num->get_type()->is_pointer_type())
+                num = builder->create_load(num);
+            if(num->get_type()->is_float_type())
+                num = builder->create_fptosi(num,TYPE32);
+            //if num < 0; enter exphandBB
+            auto exphandBB = BasicBlock::create(module.get(),"exphandBB",currentFunc);
+            auto normalBB = BasicBlock::create(module.get(),"normalBB",currentFunc);
+            auto flagnum = builder->create_icmp_ge(num,CONST_INT(0));
+            auto br = builder->create_cond_br(flagnum,normalBB,exphandBB);
+
+            //normalBB
+            builder->set_insert_point(normalBB);
+            if(ret->get_type()->is_array_type())
+            {
+                //get first address of array
+                var = builder->create_gep(var,{CONST_INT(0),CONST_INT(0)});
+            }
+            var = builder->create_gep(var,{num});
+            ret = var;
+
+            //exphandBB
+            builder->set_insert_point(exphandBB);
+            printf("var[expression],expression error\n");
+        }
+        else
+        {
+            ret = var;
+        }
+        
+    }
+    else
+    {
+        exit(0);
+    }
+    
+}
+void CminusfBuilder::visit(ASTAssignExpression &node)
+//assign-expression→var = expression
+{
+    Type* TYPE32 = Type::get_int32_type(module.get());
+    Type* TYPEFLOAT = Type::get_float_type(module.get());
+    node.var.get()->accept(*this);
+    Value* var = ret;
+    node.expression.get()->accept(*this);
+    auto ret_type = ret->get_type();
+    if(var->get_type()->get_pointer_element_type()->is_float_type())
+    {
+        if(ret_type->is_integer_type())
+            ret = builder->create_sitofp(ret,TYPEFLOAT);
+        builder->create_store(ret,var);
+    }
+    else
+    {
+        if(ret_type->is_float_type())
+            ret = builder->create_fptosi(ret,TYPE32);
+        builder->create_store(ret,var);
+    }
+    
+}
 
 void CminusfBuilder::visit(ASTSimpleExpression &node) { 
     //simple-expression -> additive-expression relop additive- expression | additive-expression
