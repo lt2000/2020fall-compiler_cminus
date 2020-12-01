@@ -232,10 +232,213 @@ void CminusfBuilder::visit(ASTVar &node) { }
 
 void CminusfBuilder::visit(ASTAssignExpression &node) { }
 
-void CminusfBuilder::visit(ASTSimpleExpression &node) { }
+void CminusfBuilder::visit(ASTSimpleExpression &node) { 
+    //simple-expression -> additive-expression relop additive- expression | additive-expression
+    //simple-expression -> additive-expression
+    Type *Int32Type = Type::get_int32_type(module.get());
+    Type *FloatType = Type::get_float_type(module.get());
+    //简单加法表达式，通过accept调用下一层级
+    if(!node.additive_expression_r){
+        node.additive_expression_l->accept(*this);
+    }
+    //simple-expression -> additive-expression relop additive- expression
+    //关系表达式，运算结果为整型1 或者 0
+    else{
+        //获取左值和右值
+        Value* ret;
+        Value* AdditiveLoad_l;
+        Value* AdditiveLoad_r;
+        Value* icmp;
+        node.additive_expression_l->accept(*this);
+        AdditiveLoad_l = builder->create_load(ret);
+        node.additive_expression_r->accept(*this);
+        AdditiveLoad_r = builder->create_load(ret);
+        //标志是否为浮点数
+        int flag = 0;
+        //如果两个数中至少有一个是浮点数
+        if(AdditiveLoad_l - (int)AdditiveLoad_l != 0 || AdditiveLoad_r - (int)AdditiveLoad_r != 0){
+            //将两个数和结果都转换成浮点数
+            AdditiveLoad_l = builder->create_sitofp(AdditiveLoad_l, FloatType);
+            AdditiveLoad_r = builder->create_sitofp(AdditiveLoad_r, FloatType);
+            icmp = builder->create_sitofp(icmp, FloatType);
+            flag = 1;
+         }
+        if(flag == 1){
+            switch (node.op)
+            {
+            case OP_GE:
+                icmp = builder->create_fcmp_ge(AdditiveLoad_l, AdditiveLoad_r);
+                break;
+            case OP_GT:
+                icmp = builder->create_fcmp_gt(AdditiveLoad_l, AdditiveLoad_r);
+                break;
+            case OP_LE:
+                icmp = builder->create_fcmp_le(AdditiveLoad_l, AdditiveLoad_r);
+                break;
+            case OP_LT:
+                icmp = builder->create_fcmp_lt(AdditiveLoad_l, AdditiveLoad_r);
+                break;
+            case OP_EQ:
+                icmp = builder->create_fcmp_eq(AdditiveLoad_l, AdditiveLoad_r);
+                break;
+            case OP_NEQ:
+                icmp = builder->create_fcmp_ne(AdditiveLoad_l, AdditiveLoad_r);
+                break;
+            default:
+                break;
+            }
+        }
+        else{
+            switch (node.op)
+            {
+            case OP_GE:
+                icmp = builder->create_icmp_ge(AdditiveLoad_l, AdditiveLoad_r);
+                break;
+            case OP_GT:
+                icmp = builder->create_icmp_gt(AdditiveLoad_l, AdditiveLoad_r);
+                break;
+            case OP_LE:
+                icmp = builder->create_icmp_le(AdditiveLoad_l, AdditiveLoad_r);
+                break;
+            case OP_LT:
+                icmp = builder->create_icmp_lt(AdditiveLoad_l, AdditiveLoad_r);
+                break;
+            case OP_EQ:
+                icmp = builder->create_icmp_eq(AdditiveLoad_l, AdditiveLoad_r);
+                break;
+            case OP_NEQ:
+                icmp = builder->create_icmp_ne(AdditiveLoad_l, AdditiveLoad_r);
+                break;
+            default:
+                break;
+            }
+        }
+    ret = icmp;
+    }
+}
 
-void CminusfBuilder::visit(ASTAdditiveExpression &node) { }
+void CminusfBuilder::visit(ASTAdditiveExpression &node) { 
+    //additive-expression -> additive-expression addop term | term
+    Type *Int32Type = Type::get_int32_type(module.get());
+    Type *FloatType = Type::get_float_type(module.get());
+    Value* AdditiveExpression;
+    Value* Term;
+    Value* icmp;
+    //additive-expression -> term
+    //如果只是简单的项，转到下一层
+    if(!node.additive_expression){
+        node.additive_expression->accept(*this);
+    }
+    //additive-expression -> additive-expression addop term
+    else{
+        node.additive_expression->accept(*this);
+        AdditiveExpression = builder->create_load(ret);
+        node.term->accept(*this);
+        Term = builder->create_load(ret);
+        int flag = 0;
+        //如果是浮点数相加
+        if(AdditiveExpression - (int)AdditiveExpression != 0 || Term - (int)Term != 0){
+            flag = 1;
+            AdditiveExpression = builder->create_sitofp(AdditiveExpression, FloatType);
+            Term = builder->create_sitofp(Term, FloatType);
+            icmp = builder->create_sitofp(icmp, FloatType);
+        }
+        if(flag == 1){
+            if(node.op == OP_PLUS){
+                icmp = builder->create_fadd(AdditiveExpression, Term);
+            }
+            else{
+                icmp = builder->create_fsub(AdditiveExpression, Term);
+            }
+        }
+        else{
+            if(node.op == OP_PLUS){
+                icmp = builder->create_iadd(AdditiveExpression, Term);
+            }
+            else{
+                icmp = builder->create_isub(AdditiveExpression, Term);
+            }
+        }
+        ret = icmp;
+    }
+}
 
-void CminusfBuilder::visit(ASTTerm &node) { }
+void CminusfBuilder::visit(ASTTerm &node) {
+    //term -> term mulop factor | factor
+    Type *Int32Type = Type::get_int32_type(module.get());
+    Type *FloatType = Type::get_float_type(module.get());
+    Value* Term;
+    Value* Factor;
+    Value* icmp;
+    //term -> factor
+    if(!node.term){
+        node.term->accept(*this);
+    }
+    //term -> term mulop factor
+    else{
+        node.term->accept(*this);
+        Term = builder->create_load(ret);
+        node.factor->accept(*this);
+        Factor = builder->create_load(ret);
+        int flag = 0;
+        if(Term - (int)Term != 0 || Factor - (int)Factor != 0){
+            flag = 1;
+            Term = builder->create_sitofp(Term, FloatType);
+            Factor = builder->create_sitofp(Factor, FloatType);
+            icmp = builder->create_sitofp(icmp, FloatType);
+        }
+        if(flag == 1){
+            if(node.op == OP_MUL){
+                icmp = builder->create_fmul(Term, Factor);
+            }
+            else{
+                icmp = builder->create_fdiv(Term, Factor);
+            }
+        }
+        else{
+            if(node.op == OP_DIV){
+                icmp = builder->create_imul(Term, Factor);
+            }
+            else{
+                icmp = builder->create_isdiv(Term, Factor);
+            }
+        }
+        ret = icmp;
+    }
+ }
 
-void CminusfBuilder::visit(ASTCall &node) { }
+void CminusfBuilder::visit(ASTCall &node) { 
+    //根据名字寻找到对应的值
+    Value* value;
+    value = scope.find(node.id);
+    Value* value_args;
+    if(value == nullptr){
+        return;
+    }
+    else{
+        std::vector<Value *> function;
+        Type *Int32Type = Type::get_int32_type(module.get());
+        Type *FloatType = Type::get_float_type(module.get());
+        Type *Int32PtrType = Type::get_int32_ptr_type(module.get());
+        Type *Int1Type = Type::get_int1_type(module.get());
+        for(auto Args : node.args){
+            Args->accept(*this);
+            //如果是整型，存放地址
+            if(ret->get_type() == Int32Type || ret->get_type() == FloatType){
+                value_args = ret;
+            }
+            //如果是布尔型，转换成32位整型
+            else if(ret->get_type() == Int1Type){
+                value_args = builder->create_zext(ret, Int32Type);
+            }
+            //如果是指针
+            else if(ret->get_type() == Int32PtrType){
+                value_args = builder->create_load(ret);
+            }
+            function.push_back(value_args);
+        }
+        CallInst* call;
+        ret = value_args;
+        call = builder->create_call(value, function);
+    }
+}
