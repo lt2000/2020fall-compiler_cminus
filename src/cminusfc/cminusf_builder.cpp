@@ -1,14 +1,16 @@
 #include "cminusf_builder.hpp"
-
+#include "logging.hpp"
+#define Debug 1
 #define CONST_INT(num) \
-    ConstantInt::get((int)num, module.get())
+    ConstantInt::get(num, module.get())
 
 #define CONST_FP(num) \
-    ConstantFP::get((float)num, module.get()) // 得到常数值的表示,方便后面多次用到
+    ConstantFP::get(num, module.get()) // 得到常数值的表示,方便后面多次用到
 
 //global variables
 Value *ret; //存储返回值
 std::vector<Type *> Ints;//储存参数的类型，以确定函数的类型
+int argload;
 
 
 /*
@@ -22,6 +24,9 @@ std::vector<Type *> Ints;//储存参数的类型，以确定函数的类型
 
 void CminusfBuilder::visit(ASTProgram &node) {
     //program -> declaration-list
+#ifdef Debug
+    printf("program!\n");
+#endif
     for(auto decl : node.declarations )
     {
         decl->accept(*this);
@@ -29,9 +34,12 @@ void CminusfBuilder::visit(ASTProgram &node) {
  }
 
 void CminusfBuilder::visit(ASTNum &node) { 
+ #ifdef Debug
+    printf("num!\n");
+#endif
    if(node.type==TYPE_INT)
    {
-       ret = CONST_INT(node.i_val);
+      ret = CONST_INT(node.i_val);
    }
    else if(node.type==TYPE_FLOAT)
    {
@@ -41,6 +49,9 @@ void CminusfBuilder::visit(ASTNum &node) {
 
 void CminusfBuilder::visit(ASTVarDeclaration &node) {
     //var-declaration -> type-specifier ID ; ∣ type-specifier ID [INTEGER ]
+#ifdef Debug
+    printf("var_declaration!\n");
+#endif
     auto TyInt32 = Type::get_int32_type(module.get());
     auto TyFloat = Type::get_float_type(module.get());
     //局部变量,不能是空类型，push作用将id储存进作用域，以便之后赋值时查找是否声明
@@ -52,7 +63,7 @@ void CminusfBuilder::visit(ASTVarDeclaration &node) {
             {
                auto *arrayType = ArrayType::get(TyInt32, node.num->i_val);
                auto Local_IntArrayAlloca = builder->create_alloca(arrayType);  //为数组分配空间
-               scope.push(node.id,Local_IntArrayAlloca);//一定要push吗？？
+               scope.push(node.id,Local_IntArrayAlloca);
             }
             else if(node.type==TYPE_FLOAT)//浮点型数组
             {
@@ -119,12 +130,25 @@ void CminusfBuilder::visit(ASTFunDeclaration &node) {
     //fun-declaration → type-specifier ID ( params ) compound-stmt
     //四个内置函数定义在io.c中
     //TO DO 函数不能重名？？？？
+#ifdef Debug
+    printf("fun_declaration!\n");
+#endif
     scope.enter();//进入函数的作用域
     Type* TYPE32 = Type::get_int32_type(module.get());
     Type *TyFloat = Type::get_float_type(module.get());
     Type* TYPEV = Type::get_void_type(module.get());
     Type* TYPEARRAY_32 = PointerType::get_int32_ptr_type(module.get());
-    Type * funType = (node.type == TYPE_VOID) ? TYPEV : TYPE32;
+    Type * funType;
+    
+    Type* TYPEARRAY_INT_32 = PointerType::get_int32_ptr_type(module.get());
+    Type* TYPEARRAY_FLOAT_32 = PointerType::get_float_ptr_type(module.get());
+    
+    if(node.type == TYPE_FLOAT)
+       funType = TyFloat;
+    else
+    {
+         funType = (node.type == TYPE_VOID) ? TYPEV : TYPE32;
+    }
 
     // 函数参数的vector
     std::vector<Value *> args;
@@ -139,7 +163,36 @@ void CminusfBuilder::visit(ASTFunDeclaration &node) {
     // BB的名字在生成中无所谓,但是可以方便阅读
     auto bb = BasicBlock::create(module.get(), "entry", fun);
     builder->set_insert_point(bb); 
-    
+    scope.exit();
+    scope.push(node.id,fun);//函数名放进作用域
+    scope.enter();
+    for(auto param : node.params )//alloca
+    {
+       
+       if(param->isarray){
+          if(param->type==TYPE_INT)
+           {
+               auto pAlloca = builder->create_alloca(TYPEARRAY_INT_32);//在内存中分配空间
+               scope.push(param->id,pAlloca);
+           } 
+          else if(param->type==TYPE_FLOAT)
+          {
+               auto pAlloca = builder->create_alloca(TYPEARRAY_FLOAT_32);
+               scope.push(param->id,pAlloca);
+          }
+       }
+       else 
+         if(param->type==TYPE_INT)//整型
+           {
+               auto pAlloca = builder->create_alloca(TYPE32);
+               scope.push(param->id,pAlloca);
+           }
+         else if(param->type==TYPE_FLOAT)//浮点型
+           {
+              auto pAlloca = builder->create_alloca(TyFloat);
+              scope.push(param->id,pAlloca);
+          }
+     }
     for(auto arg = fun->arg_begin(); arg!=fun->arg_end(); arg++)
     {
        args.push_back(*arg);
@@ -154,7 +207,6 @@ void CminusfBuilder::visit(ASTFunDeclaration &node) {
         else builder->create_store(args[i++], pAlloca);
         Ints.pop_back();//清空向量
     }
-    scope.push(node.id,fun);//函数名放进作用域
     }
     else //参数列表为空
     {
@@ -162,52 +214,50 @@ void CminusfBuilder::visit(ASTFunDeclaration &node) {
         // BB的名字在生成中无所谓,但是可以方便阅读
         auto bb = BasicBlock::create(module.get(), "entry", fun);
         builder->set_insert_point(bb);
-        scope.push(node.id,fun);
     }
-
     node.compound_stmt->accept(*this);
     scope.exit();
 }
 
 void CminusfBuilder::visit(ASTParam &node) {
+#ifdef Debug
+    printf("param!\n");
+#endif
     //param -> type-specifier ID | type-specifier ID [] 
     Type* TYPE32 = Type::get_int32_type(module.get());
-    Type *TyFloat = Type::get_float_type(module.get());
+    Type* TyFloat = Type::get_float_type(module.get());
     Type* TYPEARRAY_INT_32 = PointerType::get_int32_ptr_type(module.get());
     Type* TYPEARRAY_FLOAT_32 = PointerType::get_float_ptr_type(module.get());
-    Value *pAlloca;
+
     //返回参数类型并分配空间
     if(node.isarray)//数组参数
     {
         if(node.type==TYPE_INT)
          {
              Ints.push_back(TYPEARRAY_INT_32);
-             pAlloca = builder->create_alloca(TYPEARRAY_INT_32);//在内存中分配空间
-             scope.push(node.id,pAlloca);
          } 
         else if(node.type==TYPE_FLOAT)
         {
             Ints.push_back(TYPEARRAY_FLOAT_32);
-            pAlloca = builder->create_alloca(TYPEARRAY_FLOAT_32);
-            scope.push(node.id,pAlloca);
         }
     }
-    else if(node.type==TYPE_INT)//整型
+    else 
+    if(node.type==TYPE_INT)//整型
         {
             Ints.push_back(TYPE32);
-            pAlloca = builder->create_alloca(TYPE32);
-            scope.push(node.id,pAlloca);
         }
     else if(node.type==TYPE_FLOAT)//浮点型
          {
             Ints.push_back(TyFloat);
-            pAlloca = builder->create_alloca(TyFloat);
-            scope.push(node.id,pAlloca);
          }
+         return;
  }
 
 void CminusfBuilder::visit(ASTCompoundStmt &node) { 
     // compound-stmt -> { local-declarations statement-list } 
+#ifdef Debug
+    printf("compound_stmt!\n");
+#endif
      scope.enter();
      for(auto loc_decl: node.local_declarations)
      {
@@ -218,6 +268,7 @@ void CminusfBuilder::visit(ASTCompoundStmt &node) {
          stmt->accept(*this);
      }
      scope.exit();
+     
 }
 
 
@@ -225,6 +276,9 @@ void CminusfBuilder::visit(ASTExpressionStmt &node)
 //expression-stmt→expression ; ∣ ;
 //expression→assign-expression ∣ simple-expression
 {
+#ifdef Debug
+    printf("expression_stmt!\n");
+#endif
     if(node.expression != nullptr){
         node.expression->accept(*this);
     }
@@ -233,6 +287,9 @@ void CminusfBuilder::visit(ASTExpressionStmt &node)
 void CminusfBuilder::visit(ASTSelectionStmt &node)
 //selection-stmt→ ​if ( expression ) statement∣ if ( expression ) statement else statement​
 {
+#ifdef Debug
+    printf("selection_stmt!\n");
+#endif
     Type* TYPE32 = Type::get_int32_type(module.get());
     node.expression->accept(*this);
     if(ret->get_type()->is_pointer_type())
@@ -242,22 +299,13 @@ void CminusfBuilder::visit(ASTSelectionStmt &node)
     //currentFunction
     auto currentFunc = builder->get_insert_block()->get_parent();
     auto flag = builder->create_icmp_ne(ret,CONST_INT(0));
-    auto trueBB = BasicBlock::create(module.get(),"trueBB",currentFunc);
-    auto falseBB = BasicBlock::create(module.get(),"falseBB",currentFunc);
-    auto nextBB = BasicBlock::create(module.get(),"nextBB",currentFunc);
+    auto trueBB = BasicBlock::create(module.get(),"",currentFunc);
+    auto falseBB = BasicBlock::create(module.get(),"",currentFunc);
+    BasicBlock* nextBB;
     auto br = builder->create_cond_br(flag,trueBB,falseBB);
     int insertedflag = 0;
 
-    //tureBB
-    builder->set_insert_point(trueBB); 
-    node.if_statement->accept(*this);
-    if(builder->get_insert_block()->get_terminator() == nullptr)
-    { // no return inside the block
-        insertedflag = 1;
-        builder->create_br(nextBB);
-    }
-
-    //falseBB
+    //falseBB,假分支放在前面是为了保证在ifelse嵌套时，nextbb的序号按序
     builder->set_insert_point(falseBB);
     if(node.else_statement != nullptr)
     {
@@ -265,21 +313,44 @@ void CminusfBuilder::visit(ASTSelectionStmt &node)
         if(builder->get_insert_block()->get_terminator() == nullptr)
         { // no return inside the block
             insertedflag = 1;
+            nextBB = BasicBlock::create(module.get(),"",currentFunc);  
             builder->create_br(nextBB);
         }
     }
     else
-        builder->create_br(nextBB);
+    { 
+        nextBB = BasicBlock::create(module.get(),"",currentFunc);  
+        builder->create_br(nextBB);//冗余
+    }
+
+    //tureBB
+    builder->set_insert_point(trueBB); 
+    node.if_statement->accept(*this);
+    if(builder->get_insert_block()->get_terminator() == nullptr)
+    { // no return inside the block
+        if(insertedflag == 0)
+            {
+                insertedflag = 1;
+                if(node.else_statement != nullptr)//else没有时才创建，否则有冗余
+                nextBB = BasicBlock::create(module.get(),"",currentFunc);  
+            }  
+            builder->create_br(nextBB);
+    }
     
-    // out
-    builder->set_insert_point(nextBB); 
-    // if(insertedflag) 
-    //     nextBB->get_num_of_instr();
+
+    //nextBB
+    if(insertedflag == 1)
+            {
+                builder->set_insert_point(nextBB); 
+            }
 }
 
 void CminusfBuilder::visit(ASTIterationStmt &node)
 //iteration-stmt→while ( expression ) statement
 {
+#ifdef Debug
+    printf("iteration_stmt!\n");
+#endif
     Type* TYPE32 = Type::get_int32_type(module.get());
     //currentFunction
     auto currentFunc = builder->get_insert_block()->get_parent();
@@ -312,6 +383,9 @@ void CminusfBuilder::visit(ASTIterationStmt &node)
 void CminusfBuilder::visit(ASTReturnStmt &node)
 //return-stmt→return ; ∣ return expression ;
 {
+#ifdef Debug
+    printf("return_stmt!\n");
+#endif
     if(node.expression == nullptr)
     {
         builder->create_void_ret();
@@ -328,45 +402,85 @@ void CminusfBuilder::visit(ASTReturnStmt &node)
 void CminusfBuilder::visit(ASTVar &node)
 //var→ID ∣ ID [ expression]
 {
+#ifdef Debug
+    printf("var!\n");
+#endif
+    Type *FloatPtrType = Type::get_float_ptr_type(module.get());
+    Type *Int32PtrType = Type::get_int32_ptr_type(module.get());
     Type* TYPE32 = Type::get_int32_type(module.get());
     //currentFunction
     auto currentFunc = builder->get_insert_block()->get_parent();
     auto var = scope.find(node.id);
+    argload = 1;
     if(var)
     {
         if(node.expression != nullptr)
         //id is an array
         {
+            printf("\t\tvar-expression\n");
             node.expression->accept(*this);
-            auto num = ret;
+            Value * num = ret;
             //transfer num to int
-            if(num->get_type()->is_pointer_type())
-                num = builder->create_load(num);
+            if(num->get_type()->is_pointer_type())//传数组的时候也会load？？？？
+               {
+                   num = builder->create_load(num);
+               } 
             if(num->get_type()->is_float_type())
                 num = builder->create_fptosi(num,TYPE32);
             //if num < 0; enter exphandBB
-            auto exphandBB = BasicBlock::create(module.get(),"exphandBB",currentFunc);
-            auto normalBB = BasicBlock::create(module.get(),"normalBB",currentFunc);
+            auto exphandBB = BasicBlock::create(module.get(),"",currentFunc);
+            auto normalBB = BasicBlock::create(module.get(),"",currentFunc);
+            auto outBB = BasicBlock::create(module.get(),"",currentFunc);
             auto flagnum = builder->create_icmp_ge(num,CONST_INT(0));
             auto br = builder->create_cond_br(flagnum,normalBB,exphandBB);
 
             //normalBB
             builder->set_insert_point(normalBB);
-            if(ret->get_type()->is_array_type())
+            if(var->get_type()->get_pointer_element_type()->is_pointer_type())
             {
-                //get first address of array
-                var = builder->create_gep(var,{CONST_INT(0),CONST_INT(0)});
+                //var is an array that sub func get from main func
+                auto var_load = builder->create_load(var);
+                var = builder->create_gep(var_load, {num});
+                printf("var-exp-array in sub func\n");
+            }    
+            if(var->get_type()->get_pointer_element_type()->is_array_type())   
+            {
+                //var is an id of array,get address of id[num]
+                var = builder->create_gep(var, {CONST_INT(0), num});
+                printf("var-exp-arrary\n");
             }
-            var = builder->create_gep(var,{num});
+                
             ret = var;
+            builder->create_br(outBB);
 
             //exphandBB
             builder->set_insert_point(exphandBB);
-            printf("var[expression],expression error\n");
+            Value* value;
+            value = scope.find("neg_idx_except");
+            std::vector<Value *> function;
+            builder->create_call(value, function);
+             builder->create_br(outBB);
+            //outBB
+            builder->set_insert_point(outBB);
         }
         else
         {
-            ret = var;
+            if(var->get_type()->get_pointer_element_type()->is_float_type() || var->get_type()->get_pointer_element_type()->is_integer_type())
+            {
+                argload = 1;
+            }   
+            else if(var->get_type()->get_pointer_element_type()->is_array_type())
+            {
+                var = builder->create_gep(var, {CONST_INT(0), CONST_INT(0)});
+                printf("arrary_arg\n");
+                argload = 0;
+            }
+            else
+            {
+                var = builder->create_load(var);
+                argload = 0;
+            }
+            ret = var; 
         }
         
     }
@@ -376,33 +490,45 @@ void CminusfBuilder::visit(ASTVar &node)
     }
     
 }
+
+
+
 void CminusfBuilder::visit(ASTAssignExpression &node)
 //assign-expression→var = expression
 {
+#ifdef Debug
+    printf("assign_expression!\n");
+#endif
+ 
     Type* TYPE32 = Type::get_int32_type(module.get());
     Type* TYPEFLOAT = Type::get_float_type(module.get());
     node.var.get()->accept(*this);
     Value* var = ret;
     node.expression.get()->accept(*this);
-    auto ret_type = ret->get_type();
     if(var->get_type()->get_pointer_element_type()->is_float_type())
     {
-        if(ret_type->is_integer_type())
+        if(ret->get_type()->is_pointer_type())
+            ret = builder->create_load(ret);
+        if(ret->get_type()->is_integer_type())
             ret = builder->create_sitofp(ret,TYPEFLOAT);
         builder->create_store(ret,var);
     }
     else
     {
-        if(ret_type->is_float_type())
+        if(ret->get_type()->is_pointer_type())
+            ret = builder->create_load(ret);
+        if(ret->get_type()->is_float_type())
             ret = builder->create_fptosi(ret,TYPE32);
         builder->create_store(ret,var);
     }
     
 }
-
 void CminusfBuilder::visit(ASTSimpleExpression &node) { 
     //simple-expression -> additive-expression relop additive- expression | additive-expression
     //simple-expression -> additive-expression
+#ifdef Debug
+    printf("simple_expression!\n");
+#endif
     Type *Int32Type = Type::get_int32_type(module.get());
     Type *FloatType = Type::get_float_type(module.get());
     //简单加法表达式，通过accept调用下一层级
@@ -413,23 +539,36 @@ void CminusfBuilder::visit(ASTSimpleExpression &node) {
     //关系表达式，运算结果为整型1 或者 0
     else{
         //获取左值和右值
-        Value* ret;
         Value* AdditiveLoad_l;
         Value* AdditiveLoad_r;
         Value* icmp;
         node.additive_expression_l->accept(*this);
-        AdditiveLoad_l = builder->create_load(ret);
+        if(ret->get_type()->is_pointer_type())
+            AdditiveLoad_l = builder->create_load(ret);
+        else
+            AdditiveLoad_l = ret;
         node.additive_expression_r->accept(*this);
-        AdditiveLoad_r = builder->create_load(ret);
+        if(ret->get_type()->is_pointer_type())
+            AdditiveLoad_r = builder->create_load(ret);
+        else
+            AdditiveLoad_r = ret;
         //标志是否为浮点数
         int flag = 0;
         //如果两个数中至少有一个是浮点数
-        if(AdditiveLoad_l - (int)AdditiveLoad_l != 0 || AdditiveLoad_r - (int)AdditiveLoad_r != 0){
-            //将两个数和结果都转换成浮点数
-            AdditiveLoad_l = builder->create_sitofp(AdditiveLoad_l, FloatType);
-            AdditiveLoad_r = builder->create_sitofp(AdditiveLoad_r, FloatType);
-            icmp = builder->create_sitofp(icmp, FloatType);
+        if(AdditiveLoad_l->get_type()->is_float_type()){
             flag = 1;
+            if(AdditiveLoad_r->get_type()->is_integer_type())
+                AdditiveLoad_r = builder->create_sitofp(AdditiveLoad_r, FloatType);     
+         }
+        else
+         {
+            if(AdditiveLoad_r->get_type()->is_float_type())
+            {
+                flag = 1;
+                AdditiveLoad_l = builder->create_sitofp(AdditiveLoad_l, FloatType);
+            }
+            else
+                flag = 0;
          }
         if(flag == 1){
             switch (node.op)
@@ -486,6 +625,9 @@ void CminusfBuilder::visit(ASTSimpleExpression &node) {
 }
 
 void CminusfBuilder::visit(ASTAdditiveExpression &node) { 
+#ifdef Debug
+    printf("additive_expression!\n");
+#endif
     //additive-expression -> additive-expression addop term | term
     Type *Int32Type = Type::get_int32_type(module.get());
     Type *FloatType = Type::get_float_type(module.get());
@@ -495,22 +637,38 @@ void CminusfBuilder::visit(ASTAdditiveExpression &node) {
     //additive-expression -> term
     //如果只是简单的项，转到下一层
     if(!node.additive_expression){
-        node.additive_expression->accept(*this);
+        node.term->accept(*this);
     }
     //additive-expression -> additive-expression addop term
     else{
         node.additive_expression->accept(*this);
-        AdditiveExpression = builder->create_load(ret);
+        if(ret->get_type()->is_pointer_type())
+            AdditiveExpression = builder->create_load(ret);
+        else
+            AdditiveExpression = ret;
         node.term->accept(*this);
-        Term = builder->create_load(ret);
-        int flag = 0;
+        if(ret->get_type()->is_pointer_type())
+            Term = builder->create_load(ret);
+        else
+            Term = ret;
+            int flag = 0;
         //如果是浮点数相加
-        if(AdditiveExpression - (int)AdditiveExpression != 0 || Term - (int)Term != 0){
+        if(AdditiveExpression->get_type()->is_float_type()){
             flag = 1;
-            AdditiveExpression = builder->create_sitofp(AdditiveExpression, FloatType);
-            Term = builder->create_sitofp(Term, FloatType);
-            icmp = builder->create_sitofp(icmp, FloatType);
+            if(Term->get_type()->is_integer_type())
+                Term = builder->create_sitofp(Term, FloatType);
         }
+        else
+        {
+            if(Term->get_type()->is_float_type())
+            {
+                flag = 1;
+                AdditiveExpression = builder->create_sitofp(AdditiveExpression, FloatType);
+            }
+            else
+                flag = 0;  
+        }
+        
         if(flag == 1){
             if(node.op == OP_PLUS){
                 icmp = builder->create_fadd(AdditiveExpression, Term);
@@ -530,9 +688,11 @@ void CminusfBuilder::visit(ASTAdditiveExpression &node) {
         ret = icmp;
     }
 }
-
 void CminusfBuilder::visit(ASTTerm &node) {
     //term -> term mulop factor | factor
+#ifdef Debug
+    printf("term!\n");
+#endif
     Type *Int32Type = Type::get_int32_type(module.get());
     Type *FloatType = Type::get_float_type(module.get());
     Value* Term;
@@ -540,21 +700,36 @@ void CminusfBuilder::visit(ASTTerm &node) {
     Value* icmp;
     //term -> factor
     if(!node.term){
-        node.term->accept(*this);
+        node.factor->accept(*this);  
     }
     //term -> term mulop factor
     else{
         node.term->accept(*this);
-        Term = builder->create_load(ret);
+        if(ret->get_type()->is_pointer_type())
+            Term = builder->create_load(ret);
+        else
+            Term = ret;
         node.factor->accept(*this);
-        Factor = builder->create_load(ret);
+        if(ret->get_type()->is_pointer_type())
+            Factor = builder->create_load(ret);
+        else
+            Factor = ret;
         int flag = 0;
-        if(Term - (int)Term != 0 || Factor - (int)Factor != 0){
+        if(Term ->get_type()->is_float_type()){
             flag = 1;
-            Term = builder->create_sitofp(Term, FloatType);
-            Factor = builder->create_sitofp(Factor, FloatType);
-            icmp = builder->create_sitofp(icmp, FloatType);
+            if(Factor->get_type()->is_integer_type())
+                Factor = builder->create_sitofp(Factor, FloatType);
         }
+        else
+        {
+            if(Factor->get_type()->is_float_type())
+            {
+                flag = 1;
+                Term = builder->create_sitofp(Term,FloatType);
+            }
+            flag = 0;
+        }
+        
         if(flag == 1){
             if(node.op == OP_MUL){
                 icmp = builder->create_fmul(Term, Factor);
@@ -564,7 +739,7 @@ void CminusfBuilder::visit(ASTTerm &node) {
             }
         }
         else{
-            if(node.op == OP_DIV){
+            if(node.op == OP_MUL){
                 icmp = builder->create_imul(Term, Factor);
             }
             else{
@@ -577,6 +752,9 @@ void CminusfBuilder::visit(ASTTerm &node) {
 
 void CminusfBuilder::visit(ASTCall &node) { 
     //根据名字寻找到对应的值
+#ifdef Debug
+    printf("call!\n");
+#endif
     Value* value;
     value = scope.find(node.id);
     Value* value_args;
@@ -600,13 +778,18 @@ void CminusfBuilder::visit(ASTCall &node) {
                 value_args = builder->create_zext(ret, Int32Type);
             }
             //如果是指针
-            else if(ret->get_type() == Int32PtrType){
-                value_args = builder->create_load(ret);
+            else
+            {
+                //printf("%d\n",argload);
+                if(argload)
+                    value_args = builder->create_load(ret);
+                else value_args = ret;
             }
             function.push_back(value_args);
         }
-        CallInst* call;
-        ret = value_args;
-        call = builder->create_call(value, function);
+        // CallInst* call;
+        // ret = value_args;
+        ret = builder->create_call(value, function);
+        
     }
 }
