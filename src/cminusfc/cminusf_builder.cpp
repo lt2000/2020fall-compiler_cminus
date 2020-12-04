@@ -295,20 +295,23 @@ void CminusfBuilder::visit(ASTSelectionStmt &node)
     if(ret->get_type()->is_pointer_type())
         ret = builder->create_load(ret);
     if(ret->get_type()->is_float_type())
-        ret = builder->create_fptosi(ret,TYPE32);
+        ret = builder->create_fcmp_ne(ret,CONST_FP(0));
+    else if(ret->get_type() == TYPE32)
+        ret = builder->create_icmp_ne(ret,CONST_INT(0));
     //currentFunction
     auto currentFunc = builder->get_insert_block()->get_parent();
-    auto flag = builder->create_icmp_ne(ret,CONST_INT(0));
     auto trueBB = BasicBlock::create(module.get(),"",currentFunc);
-    auto falseBB = BasicBlock::create(module.get(),"",currentFunc);
+    BasicBlock* falseBB;
     BasicBlock* nextBB;
-    auto br = builder->create_cond_br(flag,trueBB,falseBB);
+    BranchInst * br;
     int insertedflag = 0;
 
     //falseBB,假分支放在前面是为了保证在ifelse嵌套时，nextbb的序号按序
-    builder->set_insert_point(falseBB);
-    if(node.else_statement != nullptr)
+    if(node.else_statement != nullptr)//没有else
     {
+        falseBB = BasicBlock::create(module.get(),"",currentFunc);
+        br = builder->create_cond_br(ret,trueBB,falseBB);
+        builder->set_insert_point(falseBB);
         node.else_statement->accept(*this);
         if(builder->get_insert_block()->get_terminator() == nullptr)
         { // no return inside the block
@@ -316,33 +319,36 @@ void CminusfBuilder::visit(ASTSelectionStmt &node)
             nextBB = BasicBlock::create(module.get(),"",currentFunc);  
             builder->create_br(nextBB);
         }
-    }
-    else
-    { 
-        nextBB = BasicBlock::create(module.get(),"",currentFunc);  
-        builder->create_br(nextBB);//冗余
-    }
-
-    //tureBB
-    builder->set_insert_point(trueBB); 
-    node.if_statement->accept(*this);
-    if(builder->get_insert_block()->get_terminator() == nullptr)
-    { // no return inside the block
-        if(insertedflag == 0)
+        //tureBB
+        builder->set_insert_point(trueBB); 
+        node.if_statement->accept(*this);
+        if(builder->get_insert_block()->get_terminator() == nullptr)
+        { // no return inside the block
+           if(insertedflag == 0)
             {
                 insertedflag = 1;
-                if(node.else_statement != nullptr)//else没有时才创建，否则有冗余
-                nextBB = BasicBlock::create(module.get(),"",currentFunc);  
+                nextBB = BasicBlock::create(module.get(),"",currentFunc);
             }  
             builder->create_br(nextBB);
-    }
-    
-
-    //nextBB
-    if(insertedflag == 1)
+       }
+       //nextBB
+       if(insertedflag == 1)
             {
                 builder->set_insert_point(nextBB); 
             }
+    }
+    else
+    {
+    //tureBB
+    nextBB = BasicBlock::create(module.get(),"",currentFunc);
+    br = builder->create_cond_br(ret,trueBB,nextBB);
+    builder->set_insert_point(trueBB); 
+    node.if_statement->accept(*this);
+    builder->create_br(nextBB);
+    
+    //nextBB
+    builder->set_insert_point(nextBB); 
+     }
 }
 
 void CminusfBuilder::visit(ASTIterationStmt &node)
@@ -354,9 +360,9 @@ void CminusfBuilder::visit(ASTIterationStmt &node)
     Type* TYPE32 = Type::get_int32_type(module.get());
     //currentFunction
     auto currentFunc = builder->get_insert_block()->get_parent();
-    auto loopJudge = BasicBlock::create(module.get(), "loopJudge", currentFunc);
-    auto loopBody = BasicBlock::create(module.get(), "loopBody", currentFunc);
-    auto out = BasicBlock::create(module.get(), "outloop", currentFunc);
+    auto loopJudge = BasicBlock::create(module.get(), "", currentFunc);
+    auto loopBody = BasicBlock::create(module.get(), "", currentFunc);
+    auto out = BasicBlock::create(module.get(), "", currentFunc);
     if(builder->get_insert_block()->get_terminator() == nullptr)
         builder->create_br(loopJudge);
 
@@ -366,9 +372,10 @@ void CminusfBuilder::visit(ASTIterationStmt &node)
     if(ret->get_type()->is_pointer_type())
         ret = builder->create_load(ret);
     if(ret->get_type()->is_float_type())
-        ret = builder->create_fptosi(ret,TYPE32);
-    auto flag = builder->create_icmp_ne(ret,CONST_INT(0));
-    builder->create_cond_br(flag,loopBody,out);
+        ret = builder->create_fcmp_ne(ret,CONST_FP(0));
+    else if(ret->get_type() == TYPE32)
+        ret = builder->create_icmp_ne(ret,CONST_INT(0));
+    auto br = builder->create_cond_br(ret,loopBody,out);
 
     //loopBody BB
     builder->set_insert_point(loopBody);
@@ -386,15 +393,40 @@ void CminusfBuilder::visit(ASTReturnStmt &node)
 #ifdef Debug
     printf("return_stmt!\n");
 #endif
+    Type* TYPE32 = Type::get_int32_type(module.get());
+    Type* TYPE1 = Type::get_int1_type(module.get());
+    Type* TyFloat = Type::get_float_type(module.get());
+    auto return_type = builder->get_insert_block()->get_parent()->get_return_type();
     if(node.expression == nullptr)
     {
+        if(!return_type->is_void_type())
+            printf("return_type is not void, but expression is empty\n");
         builder->create_void_ret();
     }
     else
     {
         node.expression->accept(*this);
+        if(return_type->is_void_type())
+        {
+            printf("return_type is void, but expression is not empty\n");
+            builder->create_void_ret();
+            return;
+        }
         if(ret->get_type()->is_pointer_type())
-            ret = builder->create_load(ret);
+             ret = builder->create_load(ret);
+        if(return_type == TYPE32)
+        {
+            if(ret->get_type() == TYPE1)
+                ret = builder->create_zext(ret,TYPE32);
+            else if(ret->get_type() == TyFloat)
+                ret = builder->create_fptosi(ret,TYPE32);
+        }
+        if(return_type == TyFloat)
+        {
+            if(ret->get_type()->is_integer_type())
+                ret = builder->create_sitofp(ret,TyFloat);
+        }
+
         builder->create_ret(ret);
     }
     
@@ -408,6 +440,7 @@ void CminusfBuilder::visit(ASTVar &node)
     Type *FloatPtrType = Type::get_float_ptr_type(module.get());
     Type *Int32PtrType = Type::get_int32_ptr_type(module.get());
     Type* TYPE32 = Type::get_int32_type(module.get());
+    Type* TYPE1 = Type::get_int1_type(module.get());
     //currentFunction
     auto currentFunc = builder->get_insert_block()->get_parent();
     auto var = scope.find(node.id);
@@ -417,15 +450,15 @@ void CminusfBuilder::visit(ASTVar &node)
         if(node.expression != nullptr)
         //id is an array
         {
-            printf("\t\tvar-expression\n");
+            // printf("\t\tvar-expression\n");
             node.expression->accept(*this);
             Value * num = ret;
             //transfer num to int
-            if(num->get_type()->is_pointer_type())//传数组的时候也会load？？？？
-               {
-                   num = builder->create_load(num);
-               } 
-            if(num->get_type()->is_float_type())
+            if(num->get_type()->is_pointer_type())
+                num = builder->create_load(num);
+            if(num->get_type() == TYPE1)
+                num = builder->create_zext(num,TYPE32);
+            else if(num->get_type()->is_float_type())
                 num = builder->create_fptosi(num,TYPE32);
             //if num < 0; enter exphandBB
             auto exphandBB = BasicBlock::create(module.get(),"",currentFunc);
@@ -441,13 +474,17 @@ void CminusfBuilder::visit(ASTVar &node)
                 //var is an array that sub func get from main func
                 auto var_load = builder->create_load(var);
                 var = builder->create_gep(var_load, {num});
-                printf("var-exp-array in sub func\n");
+                // printf("var-exp-array in sub func\n");
             }    
-            if(var->get_type()->get_pointer_element_type()->is_array_type())   
+            else if(var->get_type()->get_pointer_element_type()->is_array_type())   
             {
                 //var is an id of array,get address of id[num]
                 var = builder->create_gep(var, {CONST_INT(0), num});
-                printf("var-exp-arrary\n");
+                // printf("var-exp-arrary\n");
+            }
+            else
+            {
+                printf("id is a float or int, but expression is not empty\n");
             }
                 
             ret = var;
@@ -472,7 +509,7 @@ void CminusfBuilder::visit(ASTVar &node)
             else if(var->get_type()->get_pointer_element_type()->is_array_type())
             {
                 var = builder->create_gep(var, {CONST_INT(0), CONST_INT(0)});
-                printf("arrary_arg\n");
+                // printf("arrary_arg\n");
                 argload = 0;
             }
             else
@@ -486,21 +523,19 @@ void CminusfBuilder::visit(ASTVar &node)
     }
     else
     {
-        exit(0);
+        printf("cannot find the var\n");
+        return;
     }
     
 }
-
-
-
 void CminusfBuilder::visit(ASTAssignExpression &node)
 //assign-expression→var = expression
 {
 #ifdef Debug
     printf("assign_expression!\n");
 #endif
- 
     Type* TYPE32 = Type::get_int32_type(module.get());
+    Type* TYPE1 = Type::get_int1_type(module.get());
     Type* TYPEFLOAT = Type::get_float_type(module.get());
     node.var.get()->accept(*this);
     Value* var = ret;
@@ -517,20 +552,24 @@ void CminusfBuilder::visit(ASTAssignExpression &node)
     {
         if(ret->get_type()->is_pointer_type())
             ret = builder->create_load(ret);
-        if(ret->get_type()->is_float_type())
+        if(ret->get_type() ==  TYPE1)
+            ret = builder->create_zext(ret,TYPE32);
+        else if(ret->get_type()->is_float_type())
             ret = builder->create_fptosi(ret,TYPE32);
         builder->create_store(ret,var);
     }
     
 }
+
 void CminusfBuilder::visit(ASTSimpleExpression &node) { 
-    //simple-expression -> additive-expression relop additive- expression | additive-expression
-    //simple-expression -> additive-expression
 #ifdef Debug
     printf("simple_expression!\n");
 #endif
+    //simple-expression -> additive-expression relop additive- expression | additive-expression
+    //simple-expression -> additive-expression
     Type *Int32Type = Type::get_int32_type(module.get());
     Type *FloatType = Type::get_float_type(module.get());
+    Type* Int1Type = Type::get_int1_type(module.get());
     //简单加法表达式，通过accept调用下一层级
     if(!node.additive_expression_r){
         node.additive_expression_l->accept(*this);
@@ -568,8 +607,15 @@ void CminusfBuilder::visit(ASTSimpleExpression &node) {
                 AdditiveLoad_l = builder->create_sitofp(AdditiveLoad_l, FloatType);
             }
             else
+            {
                 flag = 0;
+                if(AdditiveLoad_l->get_type() == Int1Type)
+                    AdditiveLoad_l = builder->create_zext(AdditiveLoad_l,Int32Type);
+                if(AdditiveLoad_r->get_type() == Int1Type)
+                    AdditiveLoad_r = builder->create_zext(AdditiveLoad_r,Int32Type);
+            }  
          }
+         
         if(flag == 1){
             switch (node.op)
             {
@@ -625,18 +671,19 @@ void CminusfBuilder::visit(ASTSimpleExpression &node) {
 }
 
 void CminusfBuilder::visit(ASTAdditiveExpression &node) { 
+    //additive-expression -> additive-expression addop term | term
 #ifdef Debug
     printf("additive_expression!\n");
 #endif
-    //additive-expression -> additive-expression addop term | term
     Type *Int32Type = Type::get_int32_type(module.get());
+    Type *Int1Type = Type::get_int1_type(module.get());
     Type *FloatType = Type::get_float_type(module.get());
     Value* AdditiveExpression;
     Value* Term;
     Value* icmp;
     //additive-expression -> term
     //如果只是简单的项，转到下一层
-    if(!node.additive_expression){
+    if(node.additive_expression == nullptr){
         node.term->accept(*this);
     }
     //additive-expression -> additive-expression addop term
@@ -651,7 +698,7 @@ void CminusfBuilder::visit(ASTAdditiveExpression &node) {
             Term = builder->create_load(ret);
         else
             Term = ret;
-            int flag = 0;
+        int flag = 0;
         //如果是浮点数相加
         if(AdditiveExpression->get_type()->is_float_type()){
             flag = 1;
@@ -666,7 +713,13 @@ void CminusfBuilder::visit(ASTAdditiveExpression &node) {
                 AdditiveExpression = builder->create_sitofp(AdditiveExpression, FloatType);
             }
             else
-                flag = 0;  
+            {
+                flag = 0;
+                if(AdditiveExpression->get_type() == Int1Type)
+                    AdditiveExpression = builder->create_zext(AdditiveExpression,Int32Type);
+                if(Term->get_type() == Int1Type)
+                    Term = builder->create_zext(Term,Int32Type);
+            }  
         }
         
         if(flag == 1){
@@ -688,12 +741,14 @@ void CminusfBuilder::visit(ASTAdditiveExpression &node) {
         ret = icmp;
     }
 }
+
 void CminusfBuilder::visit(ASTTerm &node) {
     //term -> term mulop factor | factor
 #ifdef Debug
     printf("term!\n");
 #endif
     Type *Int32Type = Type::get_int32_type(module.get());
+    Type *Int1Type = Type::get_int1_type(module.get());
     Type *FloatType = Type::get_float_type(module.get());
     Value* Term;
     Value* Factor;
@@ -727,7 +782,14 @@ void CminusfBuilder::visit(ASTTerm &node) {
                 flag = 1;
                 Term = builder->create_sitofp(Term,FloatType);
             }
-            flag = 0;
+            else
+            {
+                flag = 0;
+                if(Factor->get_type() == Int1Type)
+                    Factor = builder->create_zext(Factor,Int32Type);
+                if(Term->get_type() == Int1Type)
+                    Term = builder->create_zext(Term,Int32Type);
+            }
         }
         
         if(flag == 1){
@@ -753,43 +815,66 @@ void CminusfBuilder::visit(ASTTerm &node) {
 void CminusfBuilder::visit(ASTCall &node) { 
     //根据名字寻找到对应的值
 #ifdef Debug
-    printf("call!\n");
+    printf("call!");
 #endif
     Value* value;
     value = scope.find(node.id);
-    Value* value_args;
-    if(value == nullptr){
+    if(value == nullptr)
         return;
-    }
-    else{
-        std::vector<Value *> function;
-        Type *Int32Type = Type::get_int32_type(module.get());
-        Type *FloatType = Type::get_float_type(module.get());
-        Type *Int32PtrType = Type::get_int32_ptr_type(module.get());
-        Type *Int1Type = Type::get_int1_type(module.get());
-        for(auto Args : node.args){
-            Args->accept(*this);
-            //如果是整型，存放地址
-            if(ret->get_type() == Int32Type || ret->get_type() == FloatType){
-                value_args = ret;
-            }
-            //如果是布尔型，转换成32位整型
-            else if(ret->get_type() == Int1Type){
-                value_args = builder->create_zext(ret, Int32Type);
-            }
-            //如果是指针
-            else
-            {
-                //printf("%d\n",argload);
-                if(argload)
-                    value_args = builder->create_load(ret);
-                else value_args = ret;
-            }
-            function.push_back(value_args);
+    auto fun = value->get_type();
+    if(!fun->is_function_type())
+        return;
+    auto callfun = static_cast <FunctionType*> (fun);
+    Value* value_args;
+    int i = 0;
+    std::vector<Value *> function;
+    Type *Int32Type = Type::get_int32_type(module.get());
+    Type *FloatType = Type::get_float_type(module.get());
+    Type *Int32PtrType = Type::get_int32_ptr_type(module.get());
+    Type *Int1Type = Type::get_int1_type(module.get());
+    for(auto Args : node.args){
+        auto arg_type = callfun->get_param_type(i);
+        i++;
+        Args->accept(*this);
+            //如果ret是布尔型，ret先转换成32位整型
+        if(ret->get_type() == Int1Type){
+            ret = builder->create_zext(ret, Int32Type);
         }
-        // CallInst* call;
-        // ret = value_args;
-        ret = builder->create_call(value, function);
-        
+            //要求的参数为整型
+        if(arg_type == Int32Type)
+        {
+            if(argload && ret->get_type()->is_pointer_type())
+                ret = builder->create_load(ret);
+            if(ret->get_type()->is_pointer_type())
+                return ;
+            else if(ret ->get_type() == FloatType)
+                ret = builder->create_fptosi(ret,Int32Type);
+            value_args = ret;
+        }   
+            //要求的参数为浮点数
+        else if(arg_type == FloatType){
+            if(argload && ret->get_type()->is_pointer_type())
+                ret = builder->create_load(ret);
+            if(ret->get_type()->is_pointer_type())
+                return ;
+            else if(ret ->get_type() == Int32Type)
+                ret = builder->create_sitofp(ret,FloatType);
+            value_args = ret; 
+        }
+            //要求的参数为指针
+        else
+        {
+            if(ret->get_type() == Int32Type || ret->get_type() == FloatType || argload)
+                return ;
+            value_args = ret;
+        }
+        function.push_back(value_args);
     }
+    if(i != callfun->get_num_of_args())
+    {
+        printf("\t the num of arg error\n");
+        return ;
+    }
+    //call,get into sub func
+    ret = builder->create_call(value, function);
 }
