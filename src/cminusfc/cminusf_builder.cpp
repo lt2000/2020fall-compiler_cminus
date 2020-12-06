@@ -67,7 +67,7 @@ void CminusfBuilder::visit(ASTVarDeclaration &node)
         {
             if(!node.num->i_val)
             {
-            Value * call_error = scope.find("neg_idx_except");
+            Value * call_error = scope.find("neg_idx_except");//数组定义是大小为零时，打印报错信息
             builder->create_call(call_error,{});
             }
             if (node.type == TYPE_INT) //整型数组
