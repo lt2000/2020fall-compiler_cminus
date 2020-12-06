@@ -99,8 +99,13 @@ void CminusfBuilder::visit(ASTVarDeclaration &node)
     }
     else //全局变量
     {
-        if (node.num != nullptr && node.num->i_val) //全局数组
+        if (node.num != nullptr ) //全局数组
         {
+            if(!node.num->i_val)
+            {
+            Value * call_error = scope.find("neg_idx_except");
+            builder->create_call(call_error,{});
+            }
             if (node.type == TYPE_INT) //整型数组
             {
                 auto *arrayType = ArrayType::get(TyInt32, node.num->i_val);
