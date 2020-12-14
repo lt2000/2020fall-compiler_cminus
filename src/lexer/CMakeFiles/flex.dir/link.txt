@@ -1,0 +1,2 @@
+/usr/bin/ar qc ../../libflex.a  CMakeFiles/flex.dir/lex.yy.c.o
+/usr/bin/ranlib ../../libflex.a

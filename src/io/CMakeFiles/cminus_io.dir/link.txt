@@ -1,0 +1,2 @@
+/usr/bin/ar qc ../../libcminus_io.a  CMakeFiles/cminus_io.dir/io.c.o
+/usr/bin/ranlib ../../libcminus_io.a

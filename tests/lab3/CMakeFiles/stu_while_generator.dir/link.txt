@@ -1,0 +1,1 @@
+/usr/bin/c++  -g  -rdynamic CMakeFiles/stu_while_generator.dir/stu_cpp/while_generator.cpp.o  -o ../../stu_while_generator  ../../libIR_lib.a 

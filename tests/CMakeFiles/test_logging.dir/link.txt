@@ -1,0 +1,1 @@
+/usr/bin/c++  -g  -rdynamic CMakeFiles/test_logging.dir/test_logging.cpp.o  -o ../test_logging  ../libcommon.a 

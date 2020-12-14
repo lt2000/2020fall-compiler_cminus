@@ -1,0 +1,1 @@
+/usr/bin/cc  -std=c99  -O0 -Wall -g2 -ggdb  -rdynamic CMakeFiles/lexer.dir/main.c.o  -o ../../lexer  ../../libflex.a 

@@ -1,0 +1,1 @@
+/usr/bin/c++  -g  -rdynamic CMakeFiles/parser.dir/main.c.o  -o ../../parser  ../../libsyntax.a ../../libcommon.a 

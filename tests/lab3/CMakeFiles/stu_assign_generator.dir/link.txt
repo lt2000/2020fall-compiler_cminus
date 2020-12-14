@@ -1,0 +1,1 @@
+/usr/bin/c++  -g  -rdynamic CMakeFiles/stu_assign_generator.dir/stu_cpp/assign_generator.cpp.o  -o ../../stu_assign_generator  ../../libIR_lib.a 

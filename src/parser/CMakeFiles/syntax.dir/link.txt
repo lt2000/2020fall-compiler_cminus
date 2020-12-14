@@ -1,0 +1,2 @@
+/usr/bin/ar qc ../../libsyntax.a  CMakeFiles/syntax.dir/syntax_analyzer.c.o CMakeFiles/syntax.dir/lexical_analyzer.c.o
+/usr/bin/ranlib ../../libsyntax.a

@@ -1,0 +1,2 @@
+/usr/bin/ar qc ../../libcommon.a  CMakeFiles/common.dir/syntax_tree.c.o CMakeFiles/common.dir/ast.cpp.o CMakeFiles/common.dir/logging.cpp.o
+/usr/bin/ranlib ../../libcommon.a

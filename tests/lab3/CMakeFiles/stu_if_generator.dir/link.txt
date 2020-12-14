@@ -1,0 +1,1 @@
+/usr/bin/c++  -g  -rdynamic CMakeFiles/stu_if_generator.dir/stu_cpp/if_generator.cpp.o  -o ../../stu_if_generator  ../../libIR_lib.a 

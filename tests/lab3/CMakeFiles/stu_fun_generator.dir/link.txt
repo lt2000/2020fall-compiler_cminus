@@ -1,0 +1,1 @@
+/usr/bin/c++  -g  -rdynamic CMakeFiles/stu_fun_generator.dir/stu_cpp/fun_generator.cpp.o  -o ../../stu_fun_generator  ../../libIR_lib.a 
