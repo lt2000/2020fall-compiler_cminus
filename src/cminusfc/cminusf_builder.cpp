@@ -4,7 +4,6 @@
 #define CONST_INT(num) \
     ConstantInt::get(num, module.get())
 
-<<<<<<< HEAD
 #define CONST_FP(num) \
     ConstantFP::get(num, module.get()) // 得到常数值的表示,方便后面多次用到
 
@@ -13,7 +12,6 @@ Value *ret;               //存储返回值
 std::vector<Type *> Ints; //储存参数的类型，以确定函数的类型
 int argload;
 int return_flag = 0;       //全局变量标识当前模块是否已经有return语句
-=======
 // use these macros to get constant value
 #define CONST_FP(num) \
     ConstantFP::get((float)num, module.get())
@@ -23,7 +21,6 @@ int return_flag = 0;       //全局变量标识当前模块是否已经有return
 
 // You can define global variables here
 // to store state
->>>>>>> upstream/master
 
 /*
  * use CMinusfBuilder::Scope to construct scopes
