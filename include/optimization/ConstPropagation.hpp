@@ -49,8 +49,6 @@ public:
         INT32_T = Type::get_int32_type(m);        //为了判断全局变量的类型
         FLOAT_T = Type::get_float_type(m);
     }
-    ConstantInt* setDefVal(Value *v, ConstantInt *const_val);
-    ConstantInt* getDefVal(Value *v);
     void run();
 
 private:
