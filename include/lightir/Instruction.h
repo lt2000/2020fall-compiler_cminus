@@ -297,8 +297,8 @@ private:
 public:
     static StoreInst *create_store(Value *val, Value *ptr, BasicBlock *bb);
 
-    Value *get_rval() { return this->get_operand(0); }
-    Value *get_lval() { return this->get_operand(1); }
+    Value *get_rval() { return this->get_operand(0); }  //要储存的值
+    Value *get_lval() { return this->get_operand(1); }  //地址
 
     virtual std::string print() override;
 };
