@@ -169,9 +169,9 @@ void ConstPropagation::run()
 #ifdef DEBUG
             std::cerr << "ConstPropagation: " << bb->get_name() << std::endl;
 #endif
-            ///////////////////////////////////////////////////////////////////////////////
+            ///////////////////////////////////////////////////////////////////////////////////////////////////
             /////////////删除常数运算指令和比较指令、类型转换指令、零扩展指令、全局变量的load指令//////////////
-            //////////////////////////////////////////////////////////////////////////////
+            ///////////////////////////////////////////////////////////////////////////////////////////////////
             std::vector<Instruction *> wait_delete;
             for (auto instr : bb->get_instructions())
             {
@@ -189,10 +189,7 @@ void ConstPropagation::run()
                         if (val1 && val2)
                         {
                             auto const_flod = flod->compute(instr->get_instr_type(), val1, val2);
-                            for (auto use : instr->get_use_list()) //进行整型常量传播
-                            {
-                                dynamic_cast<User *>(use.val_)->set_operand(use.arg_no_, const_flod);
-                            }
+                            instr->replace_all_use_with(const_flod);
                             wait_delete.push_back(instr);
                         }
                     }
@@ -203,10 +200,7 @@ void ConstPropagation::run()
                         if (val1 && val2)
                         {
                             auto const_flod = flod->compute(instr->get_instr_type(), val1, val2);
-                            for (auto use : instr->get_use_list()) //进行浮点型常量传播
-                            {
-                                dynamic_cast<User *>(use.val_)->set_operand(use.arg_no_, const_flod);
-                            }
+                            instr->replace_all_use_with(const_flod);//进行浮点型常量传播
                             wait_delete.push_back(instr);
                         }
                     }
@@ -218,10 +212,7 @@ void ConstPropagation::run()
                     {
                         int intval = val->get_value();
                         auto const_flod = ConstantInt::get(intval, m_);
-                        for (auto use : instr->get_use_list()) //进行常量传播
-                        {
-                            dynamic_cast<User *>(use.val_)->set_operand(use.arg_no_, const_flod);
-                        }
+                        instr->replace_all_use_with(const_flod);
                         wait_delete.push_back(instr);
                     }
                 }
@@ -232,10 +223,7 @@ void ConstPropagation::run()
                     {
                         float fpval = val->get_value();
                         auto const_flod = ConstantFP::get(fpval, m_);
-                        for (auto use : instr->get_use_list()) //进行常量传播
-                        {
-                            dynamic_cast<User *>(use.val_)->set_operand(use.arg_no_, const_flod);
-                        }
+                        instr->replace_all_use_with(const_flod);
                         wait_delete.push_back(instr);
                     }
                 }
@@ -246,10 +234,7 @@ void ConstPropagation::run()
                     {
                         int intval = val->get_value();
                         auto const_flod = ConstantInt::get(intval, m_);
-                        for (auto use : instr->get_use_list()) //进行常量传播
-                        {
-                            dynamic_cast<User *>(use.val_)->set_operand(use.arg_no_, const_flod);
-                        }
+                        instr->replace_all_use_with(const_flod);
                         wait_delete.push_back(instr);
                     }
                 }
@@ -260,8 +245,8 @@ void ConstPropagation::run()
                     if (val1 && val2)
                     {
                         auto const_flod = flod->compute(dynamic_cast<CmpInst *>(instr)->get_cmp_op(), val1, val2);
-                        for (auto use : instr->get_use_list())
-                            dynamic_cast<User *>(use.val_)->set_operand(use.arg_no_, const_flod);
+                       
+                       instr->replace_all_use_with(const_flod);
                         wait_delete.push_back(instr);
                     }
                 }
@@ -272,8 +257,7 @@ void ConstPropagation::run()
                     if (val1 && val2)
                     {
                         auto const_flod = flod->compute(dynamic_cast<FCmpInst *>(instr)->get_cmp_op(), val1, val2);
-                        for (auto use : instr->get_use_list())
-                            dynamic_cast<User *>(use.val_)->set_operand(use.arg_no_, const_flod);
+                        instr->replace_all_use_with(const_flod);
 
                         wait_delete.push_back(instr);
                     }
@@ -298,10 +282,7 @@ void ConstPropagation::run()
                                 val = nullptr;
                             if (val)
                             {
-                                for (auto use : instr->get_use_list())
-                                {
-                                    dynamic_cast<User *>(use.val_)->set_operand(use.arg_no_, val);
-                                }
+                                instr->replace_all_use_with(val);
                                 wait_delete.push_back(instr);
                             }
                         }
@@ -316,10 +297,7 @@ void ConstPropagation::run()
                                 val = nullptr;
                             if (val)
                             {
-                                for (auto use : instr->get_use_list())
-                                {
-                                    dynamic_cast<User *>(use.val_)->set_operand(use.arg_no_, val);
-                                }
+                                instr->replace_all_use_with(val);
                                 wait_delete.push_back(instr);
                             }
                         }
