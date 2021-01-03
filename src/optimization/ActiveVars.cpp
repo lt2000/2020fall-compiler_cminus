@@ -30,37 +30,6 @@ void ActiveVars::initset(Function *func)
                 defed.insert(instr);
                 def_set[BB].insert(instr);
             }
-            // else if (instr->is_store())
-            // {
-            //     auto l_val = static_cast<StoreInst *>(instr)->get_lval();
-            //     auto r_val = static_cast<StoreInst *>(instr)->get_rval();
-            //     if (NeedDef.find(r_val) != NeedDef.end())
-            //     {
-            //         used.insert(r_val);
-            //         if (defed.find(r_val) == defed.end())
-            //         {
-            //             use_set[BB].insert(r_val);
-            //             live_in[BB].insert(r_val);
-            //         }
-            //     }
-            //     //不是数组，那必定是全局变量了
-            //     if (!(static_cast<Instruction *>(l_val))->is_gep())
-            //     {
-            //         used.insert(l_val);
-            //         use_set[BB].insert(l_val);
-            //         live_in[BB].insert(l_val);
-            //     }
-            //     //是数组,l_val其实是由gep求出来的
-            //     else
-            //     {
-            //         used.insert(l_val);
-            //         if (defed.find(l_val) == defed.end())
-            //         {
-            //             use_set[BB].insert(l_val);
-            //             live_in[BB].insert(l_val);
-            //         }
-            //     }
-            // }
             else
             {
                 for (unsigned i = 0; i < instr->get_num_operand(); i++)
