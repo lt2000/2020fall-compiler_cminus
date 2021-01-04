@@ -14,17 +14,7 @@ class CommonSubExper : public Pass
 {
 public:
   CommonSubExper(Module *m) : Pass(m) {}
-  ~CommonSubExper(){};
   void run();
-  void CommonSubExperElimination();
-  Value *getBinaryLop(Instruction *instr);
-  Value *getBinaryRop(Instruction *instr);
-  Value *getLoadPtr(Instruction *instr);
-  Value *getLoadOffset(Instruction *instr);
-  int getLoadOffsetShl(Instruction *instr);
-
-  Value *getGepPtr(Instruction *instr);
-  Value *getGepOffset(Instruction *instr);
 
 private:
   std::map<std::tuple<Value *, Instruction::OpID, Value *>, Value *> op;    //操作数都不是常数的运算表达式
