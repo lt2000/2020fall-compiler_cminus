@@ -157,9 +157,40 @@ ConstantInt *cast_constantint(Value *value)
     }
 }
 
+int ConstPropagation::global_def_func()//得到全局变量被定值的函数个数
+{
+    for (auto func : m_->get_functions())
+    {
+        for (auto bb : func->get_basic_blocks())
+        {
+            for (auto instr : bb->get_instructions())
+            {
+                if (instr->is_store())
+                {
+                    auto val1 = dynamic_cast<StoreInst *>(instr)->get_lval(); //store的地址
+                    auto globalval = dynamic_cast<GlobalVariable *>(val1);
+                    if (globalval)
+                    {
+                        if (global_def_call.find(globalval) == global_def_call.end())
+                        {
+                            global_def_call.insert({globalval, {1, func}});
+                        }
+                        else if (global_def_call.find(globalval)->second.second != func)
+                        {
+                            global_def_call.find(globalval)->second.first++;
+                            global_def_call.find(globalval)->second.second = func;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 void ConstPropagation::run()
 {
     // 从这里开始吧！
+    global_def_func();
     for (auto func : m_->get_functions())
     {
         for (auto bb : func->get_basic_blocks())
@@ -200,7 +231,7 @@ void ConstPropagation::run()
                         if (val1 && val2)
                         {
                             auto const_flod = flod->compute(instr->get_instr_type(), val1, val2);
-                            instr->replace_all_use_with(const_flod);//进行浮点型常量传播
+                            instr->replace_all_use_with(const_flod); //进行浮点型常量传播
                             wait_delete.push_back(instr);
                         }
                     }
@@ -245,8 +276,8 @@ void ConstPropagation::run()
                     if (val1 && val2)
                     {
                         auto const_flod = flod->compute(dynamic_cast<CmpInst *>(instr)->get_cmp_op(), val1, val2);
-                       
-                       instr->replace_all_use_with(const_flod);
+
+                        instr->replace_all_use_with(const_flod);
                         wait_delete.push_back(instr);
                     }
                 }
@@ -305,63 +336,61 @@ void ConstPropagation::run()
                 }
                 else if (instr->is_store())
                 {
-                    if (instr->get_operand(0)->get_type() == INT32_T) // 整型
+                    auto val1 = dynamic_cast<StoreInst *>(instr)->get_lval(); //store的地址
+                    auto globalval = dynamic_cast<GlobalVariable *>(val1);
+                    if (globalval)
                     {
-#ifdef DEBUG
-                        std::cerr << "XIXIXIXIIXIXIX " << instr->get_operand(0)->get_name() << std::endl;
-#endif
-                        auto val1 = dynamic_cast<StoreInst *>(instr)->get_lval(); //store的地址
-                        auto val2 = cast_constantint(dynamic_cast<StoreInst *>(instr)->get_rval());
-                        if (val2)
+                        if (global_def_call.find(val1)->second.first == 1)//只有全局变量在一个函数内被定值才进行传播
                         {
+                            if (instr->get_operand(0)->get_type() == INT32_T) // 整型
+                            {
+#ifdef DEBUG
+                                std::cerr << "XIXIXIXIIXIXIX " << instr->get_operand(0)->get_name() << std::endl;
+#endif
+                                auto val2 = cast_constantint(dynamic_cast<StoreInst *>(instr)->get_rval());
+                                if (val2)
+                                {
 
-                            auto globalval = dynamic_cast<GlobalVariable *>(val1);
-                            if (globalval != nullptr)
-                            {
-                                if (global_def_int.find(globalval) != global_def_int.end())
-                                {
-                                    auto key = global_def_int.find(globalval);
-                                    key->second = val2;
+                                    if (global_def_int.find(globalval) != global_def_int.end())
+                                    {
+                                        auto key = global_def_int.find(globalval);
+                                        key->second = val2;
+                                    }
+                                    else
+                                    {
+                                        global_def_int.insert({globalval, val2});
+                                    }
                                 }
-                                else
+                                else //不是对全局变量进行常数定值，需要删除val1对应的条目，因为已经不是最新的了
                                 {
-                                    global_def_int.insert({globalval, val2});
-                                }
-                            }
-                        }
-                        else //不是对全局变量进行常数定值，需要删除val1对应的条目，因为已经不是最新的了
-                        {
 #ifdef DEBUG
-                            std::cerr << "HAHAHHAHAHAH " << instr->get_operand(0)->get_name() << std::endl;
+                                    std::cerr << "HAHAHHAHAHAH " << instr->get_operand(0)->get_name() << std::endl;
 #endif
-                            if (global_def_int.find(val1) != global_def_int.end())
-                                global_def_int.erase(global_def_int.find(val1));
-                        }
-                    }
-                    else if (instr->get_operand(0)->get_type() == FLOAT_T) //浮点型
-                    {
-                        auto val1 = dynamic_cast<StoreInst *>(instr)->get_lval(); //store的地址
-                        auto val2 = cast_constantfp(dynamic_cast<StoreInst *>(instr)->get_rval());
-                        if (val2)
-                        {
-                            auto globalval = dynamic_cast<GlobalVariable *>(val1);
-                            if (globalval != nullptr)
-                            {
-                                if (global_def_fp.find(globalval) != global_def_fp.end())
-                                {
-                                    auto key = global_def_fp.find(globalval);
-                                    key->second = val2;
-                                }
-                                else
-                                {
-                                    global_def_fp.insert({globalval, val2});
+                                    if (global_def_int.find(val1) != global_def_int.end())
+                                        global_def_int.erase(global_def_int.find(val1));
                                 }
                             }
-                        }
-                        else //不是对全局变量进行常数定值，需要删除val1对应的条目，因为已经不是最新的了
-                        {
-                            if (global_def_fp.find(val1) != global_def_fp.end())
-                                global_def_fp.erase(global_def_fp.find(val1));
+                            else if (instr->get_operand(0)->get_type() == FLOAT_T) //浮点型
+                            {
+                                auto val2 = cast_constantfp(dynamic_cast<StoreInst *>(instr)->get_rval());
+                                if (val2)
+                                {
+                                    if (global_def_fp.find(globalval) != global_def_fp.end())
+                                    {
+                                        auto key = global_def_fp.find(globalval);
+                                        key->second = val2;
+                                    }
+                                    else
+                                    {
+                                        global_def_fp.insert({globalval, val2});
+                                    }
+                                }
+                                else //不是对全局变量进行常数定值，需要删除val1对应的条目，因为已经不是最新的了
+                                {
+                                    if (global_def_fp.find(val1) != global_def_fp.end())
+                                        global_def_fp.erase(global_def_fp.find(val1));
+                                }
+                            }
                         }
                     }
                 }
@@ -414,7 +443,7 @@ void ConstPropagation::run()
                                     }
                                 }
                             }
-                             BranchInst::create_br(dynamic_cast<BasicBlock *>(falsebb), bb);//直接跳转到false
+                            BranchInst::create_br(dynamic_cast<BasicBlock *>(falsebb), bb); //直接跳转到false
                             bb->get_succ_basic_blocks().clear();
                             bb->add_succ_basic_block(dynamic_cast<BasicBlock *>(falsebb));
                         }
@@ -442,7 +471,7 @@ void ConstPropagation::run()
                                     }
                                 }
                             }
-                            BranchInst::create_br(dynamic_cast<BasicBlock *>(truebb), bb);//直接跳转到true
+                            BranchInst::create_br(dynamic_cast<BasicBlock *>(truebb), bb); //直接跳转到true
                             bb->get_succ_basic_blocks().clear();
                             bb->add_succ_basic_block(dynamic_cast<BasicBlock *>(truebb));
                         }
