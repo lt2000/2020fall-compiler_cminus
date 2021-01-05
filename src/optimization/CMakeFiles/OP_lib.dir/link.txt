@@ -1,0 +1,2 @@
+/usr/bin/ar qc ../../libOP_lib.a  CMakeFiles/OP_lib.dir/Dominators.cpp.o CMakeFiles/OP_lib.dir/Mem2Reg.cpp.o CMakeFiles/OP_lib.dir/LoopSearch.cpp.o CMakeFiles/OP_lib.dir/ConstPropagation.cpp.o CMakeFiles/OP_lib.dir/ActiveVars.cpp.o CMakeFiles/OP_lib.dir/LoopInvHoist.cpp.o CMakeFiles/OP_lib.dir/CommonSubExper.cpp.o CMakeFiles/OP_lib.dir/DeadCodeEliminate.cpp.o
+/usr/bin/ranlib ../../libOP_lib.a

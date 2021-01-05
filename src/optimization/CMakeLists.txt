@@ -6,4 +6,6 @@ add_library(
         ConstPropagation.cpp
         ActiveVars.cpp
         LoopInvHoist.cpp
+        CommonSubExper.cpp
+        DeadCodeEliminate.cpp
 )

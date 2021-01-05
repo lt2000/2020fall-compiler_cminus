@@ -167,7 +167,7 @@ int ConstPropagation::global_def_func()//得到全局变量被定值的函数个
             {
                 if (instr->is_store())
                 {
-                    auto val1 = dynamic_cast<StoreInst *>(instr)->get_lval(); //store的地址
+                    auto val1 = dynamic_cast<StoreInst *>(instr)->get_lval(); 
                     auto globalval = dynamic_cast<GlobalVariable *>(val1);
                     if (globalval)
                     {

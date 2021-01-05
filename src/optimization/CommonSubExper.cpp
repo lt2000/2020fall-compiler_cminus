@@ -27,7 +27,7 @@ ConstantInt *constantint(Value *value)
 
 void CommonSubExper::run()
 {
-  InitSideEffectFunc(m_);
+  InitStoreFunc(m_);
   for (auto func : m_->get_functions())
   {
     op.clear();
@@ -197,7 +197,7 @@ void CommonSubExper::run()
         {
           auto op_0 = instr->get_operand(0);
           auto callfunc = dynamic_cast<Function *>(op_0);
-          if(isSideEffectFunc(callfunc))
+          if(isStoreFunc(callfunc))
             load.clear();
         }
       }
@@ -209,13 +209,17 @@ void CommonSubExper::run()
   }
 }
 
-void CommonSubExper::InitSideEffectFunc(Module *m)
+void CommonSubExper::InitStoreFunc(Module *m)
 {
   std::set<std::pair<CallInst *, Function *>> call_list;
   for (auto func : m->get_functions())
   {
     if (func->get_num_basic_blocks() == 0 || is_main(func))
+    {
+      if(func->get_num_of_args() != 0)
+        StoreFunc.insert(func);
       continue;
+    }
     bool side_effect = false;
     for (auto bb : func->get_basic_blocks())
     {
@@ -229,7 +233,7 @@ void CommonSubExper::InitSideEffectFunc(Module *m)
           if (!isLocalStore(store))
           {
             side_effect = true;
-            SideEffectFunc.insert(func);
+            StoreFunc.insert(func);
             break;
           }
         }
@@ -248,16 +252,16 @@ void CommonSubExper::InitSideEffectFunc(Module *m)
     std::set<std::pair<CallInst *, Function *>> remove_calls;
     for (auto cur_call : call_list)
     {
-      if (SideEffectFunc.find(cur_call.second) != SideEffectFunc.end())
+      if (StoreFunc.find(cur_call.second) != StoreFunc.end())
         remove_calls.insert(cur_call);
       else
       {
         auto op_0 = cur_call.first->get_operand(0);
         auto op_func = dynamic_cast<Function *>(op_0);
-        if (SideEffectFunc.find(op_func) != SideEffectFunc.end())
+        if (StoreFunc.find(op_func) != StoreFunc.end())
         {
           remove_calls.insert(cur_call);
-          SideEffectFunc.insert(cur_call.second);
+          StoreFunc.insert(cur_call.second);
           changed = true;
         }
       }
