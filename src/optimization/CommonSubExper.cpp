@@ -27,6 +27,7 @@ ConstantInt *constantint(Value *value)
 
 void CommonSubExper::run()
 {
+  InitSideEffectFunc(m_);
   for (auto func : m_->get_functions())
   {
     op.clear();
@@ -192,11 +193,98 @@ void CommonSubExper::run()
             load.erase(load.find(iter.first));
           }
         }
+        else if(instr->is_call())
+        {
+          auto op_0 = instr->get_operand(0);
+          auto callfunc = dynamic_cast<Function *>(op_0);
+          if(isSideEffectFunc(callfunc))
+            load.clear();
+        }
       }
       for (auto instr : wait_delete)
       {
         bb->delete_instr(instr);
       }
+    }
+  }
+}
+
+void CommonSubExper::InitSideEffectFunc(Module *m)
+{
+  std::set<std::pair<CallInst *, Function *>> call_list;
+  for (auto func : m->get_functions())
+  {
+    if (func->get_num_basic_blocks() == 0 || is_main(func))
+      continue;
+    bool side_effect = false;
+    for (auto bb : func->get_basic_blocks())
+    {
+      if (side_effect)
+        break;
+      for (auto inst : bb->get_instructions())
+      {
+        if (inst->is_store())
+        {
+          auto store = dynamic_cast<StoreInst *>(inst);
+          if (!isLocalStore(store))
+          {
+            side_effect = true;
+            SideEffectFunc.insert(func);
+            break;
+          }
+        }
+        else if (inst->is_call())
+        {
+          auto call = static_cast<CallInst *>(inst);
+          call_list.insert(std::make_pair(call, func));
+        }
+      }
+    }
+  }
+  bool changed = true;
+  while (changed)
+  {
+    changed = false;
+    std::set<std::pair<CallInst *, Function *>> remove_calls;
+    for (auto cur_call : call_list)
+    {
+      if (SideEffectFunc.find(cur_call.second) != SideEffectFunc.end())
+        remove_calls.insert(cur_call);
+      else
+      {
+        auto op_0 = cur_call.first->get_operand(0);
+        auto op_func = dynamic_cast<Function *>(op_0);
+        if (SideEffectFunc.find(op_func) != SideEffectFunc.end())
+        {
+          remove_calls.insert(cur_call);
+          SideEffectFunc.insert(cur_call.second);
+          changed = true;
+        }
+      }
+    }
+    for (auto remove_call : remove_calls)
+      call_list.erase(remove_call);
+  }
+}
+
+bool CommonSubExper::isLocalStore(StoreInst *store_ins)
+{
+  auto l_val = store_ins->get_lval();
+  if (dynamic_cast<GlobalVariable *>(l_val))
+    return false;
+  else
+  {
+    auto instr = dynamic_cast<Instruction *>(l_val);
+    if (!instr || !instr->is_gep())
+      return false;
+    else
+    {
+      auto first_addr = instr->get_operand(0);
+      auto addr_ins = dynamic_cast<Instruction *>(first_addr);
+      if (!addr_ins || !addr_ins->is_alloca())
+        return false;
+      else
+        return true;
     }
   }
 }
