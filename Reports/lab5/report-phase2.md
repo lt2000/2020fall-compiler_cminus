@@ -178,7 +178,7 @@
 
     * 无用分支的删除
 
-      * 删除无用分支需要将条件转移指令更换为无条件跳转，直接跳转到有用分支，**同时需要删除无用分支后继块phi节点中无用块的分支，并且将无用分支从后继块的前驱链表中删去。**
+      * 删除无用分支需要将条件转移指令更换为无条件跳转，直接跳转到有用分支，**同时将跳转指令所在bb从后继块的前驱链表中删去。**
 
         ```c++
         for (auto func : m_->get_functions())
@@ -201,23 +201,6 @@
                                     for (auto succ_bb : bb->get_succ_basic_blocks())
                                     {
                                         succ_bb->remove_pre_basic_block(bb); //从后继块的前驱链表中删去无用分支
-                                        if (succ_bb != falsebb)
-                                        {
-                                            for (auto instr : succ_bb->get_instructions())
-                                            {
-                                                if (instr->is_phi())
-                                                { //从phi指令中删除turebb的条目
-                                                    for (int i = 1; i < instr->get_num_operand(); i = i + 2)
-                                                    {
-        
-                                                        if (instr->get_operand(i) == bb)
-                                                        {
-                                                            instr->remove_operands(i - 1, i);
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
                                     }
                                      BranchInst::create_br(dynamic_cast<BasicBlock *>(falsebb), bb);//直接跳转到false
                                     bb->get_succ_basic_blocks().clear();
