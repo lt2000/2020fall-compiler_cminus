@@ -190,7 +190,6 @@ int ConstPropagation::global_def_func() //得到全局变量被定值的函数�
 void ConstPropagation::run()
 {
     // 从这里开始吧！
-     global_def_call.clear();
     global_def_func();
     for (auto func : m_->get_functions())
     {
@@ -426,6 +425,26 @@ void ConstPropagation::run()
                             for (auto succ_bb : bb->get_succ_basic_blocks())
                             {
                                 succ_bb->remove_pre_basic_block(bb);
+                                if (succ_bb != falsebb)
+                                {
+                                    for (auto instr : succ_bb->get_instructions())
+                                    {
+                                        if (instr->is_phi())
+                                        { //从phi指令中删除turebb的条目
+                                            for (int i = 1; i < instr->get_num_operand(); i = i + 2)
+                                            {
+
+                                                if (instr->get_operand(i) != bb)
+                                                {
+
+                                                    auto val = instr->get_operand(i - 1);
+                                                    instr->replace_all_use_with(val);
+                                                }
+                                            }
+                                            succ_bb->delete_instr(instr);
+                                        }
+                                    }
+                                }
                             }
                             BranchInst::create_br(dynamic_cast<BasicBlock *>(falsebb), bb); //直接跳转到false
                             bb->get_succ_basic_blocks().clear();
@@ -437,6 +456,25 @@ void ConstPropagation::run()
                             for (auto succ_bb : bb->get_succ_basic_blocks())
                             {
                                 succ_bb->remove_pre_basic_block(bb);
+                                if (succ_bb != truebb)
+                                {
+                                    for (auto instr : succ_bb->get_instructions())
+                                    {
+                                        if (instr->is_phi())
+                                        { //从phi指令中删除turebb的条目
+                                            for (int i = 1; i < instr->get_num_operand(); i = i + 2)
+                                            {
+
+                                                if (instr->get_operand(i) != bb)
+                                                {
+                                                    auto val = instr->get_operand(i - 1);
+                                                    instr->replace_all_use_with(val);
+                                                }
+                                            }
+                                            succ_bb->delete_instr(instr);
+                                        }
+                                    }
+                                }
                             }
                             BranchInst::create_br(dynamic_cast<BasicBlock *>(truebb), bb); //直接跳转到true
                             bb->get_succ_basic_blocks().clear();
@@ -524,10 +562,47 @@ void ConstPropagation::run()
             wait_delete.clear();
         }
     }
+    for(auto func : m_->get_functions())
+        CompressPath(func);
     if(flag)//删除phi指令后，可能会给常量传播带来新的的机会，递归处理
     {
         run();
     }
-    else return;
-    return;
+    else 
+        return;
+}
+
+void ConstPropagation::CompressPath(Function *func)
+{
+  std::set<BasicBlock *> wait_merge;
+  for (auto BB : func->get_basic_blocks())
+  {
+    if (BB->get_pre_basic_blocks().size() == 1)
+    {
+      auto preBB = *(BB->get_pre_basic_blocks().begin());
+      if (preBB->get_succ_basic_blocks().size() == 1)
+        wait_merge.insert(BB);
+    }
+  }
+  for (auto BB : wait_merge)
+  {
+    auto preBB = *(BB->get_pre_basic_blocks().begin());
+    auto br_ins = preBB->get_terminator();
+    if (br_ins->is_br())
+      preBB->delete_instr(br_ins);
+    for (auto instr : BB->get_instructions())
+      preBB->add_instruction(instr);
+    preBB->remove_succ_basic_block(BB);
+    BB->remove_pre_basic_block(preBB);
+    auto succBB_list = BB->get_succ_basic_blocks();
+    for (auto succBB : succBB_list)
+    {
+      // succBB->remove_pre_basic_block(BB);
+      // BB->remove_succ_basic_block(succBB);
+      succBB->add_pre_basic_block(preBB);
+      preBB->add_succ_basic_block(succBB);
+    }
+    BB->replace_all_use_with(preBB);
+    func->remove(BB);
+  }
 }
