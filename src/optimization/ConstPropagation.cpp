@@ -190,6 +190,7 @@ int ConstPropagation::global_def_func() //得到全局变量被定值的函数�
 void ConstPropagation::run()
 {
     // 从这里开始吧！
+     global_def_call.clear();
     global_def_func();
     for (auto func : m_->get_functions())
     {
