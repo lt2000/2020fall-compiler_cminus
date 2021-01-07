@@ -157,7 +157,7 @@ ConstantInt *cast_constantint(Value *value)
     }
 }
 
-int ConstPropagation::global_def_func()//得到全局变量被定值的函数个数
+int ConstPropagation::global_def_func() //得到全局变量被定值的函数个数
 {
     for (auto func : m_->get_functions())
     {
@@ -167,7 +167,7 @@ int ConstPropagation::global_def_func()//得到全局变量被定值的函数个
             {
                 if (instr->is_store())
                 {
-                    auto val1 = dynamic_cast<StoreInst *>(instr)->get_lval(); 
+                    auto val1 = dynamic_cast<StoreInst *>(instr)->get_lval();
                     auto globalval = dynamic_cast<GlobalVariable *>(val1);
                     if (globalval)
                     {
@@ -340,7 +340,7 @@ void ConstPropagation::run()
                     auto globalval = dynamic_cast<GlobalVariable *>(val1);
                     if (globalval)
                     {
-                        if (global_def_call.find(val1)->second.first == 1)//只有全局变量在一个函数内被定值才进行传播
+                        if (global_def_call.find(val1)->second.first == 1) //只有全局变量在一个函数内被定值才进行传播
                         {
                             if (instr->get_operand(0)->get_type() == INT32_T) // 整型
                             {
@@ -425,23 +425,6 @@ void ConstPropagation::run()
                             for (auto succ_bb : bb->get_succ_basic_blocks())
                             {
                                 succ_bb->remove_pre_basic_block(bb);
-                                if (succ_bb != falsebb)
-                                {
-                                    for (auto instr : succ_bb->get_instructions())
-                                    {
-                                        if (instr->is_phi())
-                                        { //从phi指令中删除turebb的条目
-                                            for (int i = 1; i < instr->get_num_operand(); i = i + 2)
-                                            {
-
-                                                if (instr->get_operand(i) == bb)
-                                                {
-                                                    instr->remove_operands(i - 1, i);
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
                             }
                             BranchInst::create_br(dynamic_cast<BasicBlock *>(falsebb), bb); //直接跳转到false
                             bb->get_succ_basic_blocks().clear();
@@ -453,23 +436,6 @@ void ConstPropagation::run()
                             for (auto succ_bb : bb->get_succ_basic_blocks())
                             {
                                 succ_bb->remove_pre_basic_block(bb);
-                                if (succ_bb != truebb)
-                                {
-                                    for (auto instr : succ_bb->get_instructions())
-                                    {
-                                        if (instr->is_phi())
-                                        { //从phi指令中删除turebb的条目
-                                            for (int i = 1; i < instr->get_num_operand(); i = i + 2)
-                                            {
-
-                                                if (instr->get_operand(i) == bb)
-                                                {
-                                                    instr->remove_operands(i - 1, i);
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
                             }
                             BranchInst::create_br(dynamic_cast<BasicBlock *>(truebb), bb); //直接跳转到true
                             bb->get_succ_basic_blocks().clear();
@@ -492,36 +458,33 @@ void ConstPropagation::run()
 
             if (bb->get_name() != "label_entry") //除了第一个块，没有前驱的块都是不可达的
             {
-                if (bb->get_terminator()->is_br())
+                if (bb->get_pre_basic_blocks().empty())
                 {
-                    if (bb->get_pre_basic_blocks().empty())
+                    for (auto succ_bb : bb->get_succ_basic_blocks())
                     {
-                        for (auto succ_bb : bb->get_succ_basic_blocks())
+                        succ_bb->remove_pre_basic_block(bb);
+                        for (auto instr : succ_bb->get_instructions())
                         {
-                            succ_bb->remove_pre_basic_block(bb);
-                            for (auto instr : succ_bb->get_instructions())
+                            if (instr->is_phi())
                             {
-                                if (instr->is_phi())
+                                for (int i = 1; i < instr->get_num_operand(); i = i + 2)
                                 {
-                                    for (int i = 1; i < instr->get_num_operand(); i = i + 2)
-                                    {
 
-                                        if (instr->get_operand(i) == bb)
-                                        {
+                                    if (instr->get_operand(i) == bb)
+                                    {
 #ifdef DEBUG
-                                            std::cerr << "deletephi: " << instr->get_operand(i)->get_name() << std::endl;
+                                        std::cerr << "deletephi: " << instr->get_operand(i)->get_name() << std::endl;
 #endif
-                                            instr->remove_operands(i - 1, i);
-                                        }
+                                        instr->remove_operands(i - 1, i);
                                     }
                                 }
                             }
                         }
-#ifdef DEBUG
-                        std::cerr << "deletebb!:" << bb->get_name() << std::endl;
-#endif
-                        wait_delete.push_back(bb);
                     }
+#ifdef DEBUG
+                    std::cerr << "deletebb!:" << bb->get_name() << std::endl;
+#endif
+                    wait_delete.push_back(bb);
                 }
             }
         }
@@ -531,4 +494,39 @@ void ConstPropagation::run()
         }
         wait_delete.clear();
     }
+    /////////////////////////////////////////////////////////////////////////////////////////////////////
+    ///////////////////////////////删除无用phi指令///////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////////////////////////////////////////////////////
+     int flag = 0;
+    for (auto func : m_->get_functions())
+    {
+        std::vector<Instruction *> wait_delete;
+        for (auto bb : func->get_basic_blocks())
+        {
+            for (auto instr : bb->get_instructions())
+            {
+                if (instr->is_phi())
+                {
+                    if (instr->get_num_operand() == 2)
+                    {
+                        auto val = instr->get_operand(0);
+                        instr->replace_all_use_with(val);
+                        wait_delete.push_back(instr);
+                        flag = 1;
+                    }
+                }
+            }
+            for (auto instr : wait_delete) //删除无法到达的块
+            {
+                bb->delete_instr(instr);
+            }
+            wait_delete.clear();
+        }
+    }
+    if(flag)//删除phi指令后，可能会给常量传播带来新的的机会，递归处理
+    {
+        run();
+    }
+    else return;
+    return;
 }
