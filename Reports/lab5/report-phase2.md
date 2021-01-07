@@ -282,13 +282,87 @@
             }
         ```
 
-    * 在子函数中对数组和全局变量重新赋值的问题
-       * 如果在子函数中对数组元素和全局变量重新赋值，就无法再进行其的常量传播，因为其值在子函数中已经改变，采用的是记录全局变量被定值函数的个数，大于1则不进行传播。   
+    * phi指令的删除
 
+      * 删除无用分支后，其后继块的phi指令可能只有一个条目，将其删除进行传播可能会给常量传播带来新的机会，进行递归操作，当没有phi指令被删除时，返回。
+
+        ```c++
+         int flag = 0;
+            for (auto func : m_->get_functions())
+            {
+                std::vector<Instruction *> wait_delete;
+                for (auto bb : func->get_basic_blocks())
+                {
+                    for (auto instr : bb->get_instructions())
+                    {
+                        if (instr->is_phi())
+                        {
+                            if (instr->get_num_operand() == 2)
+                            {
+                                auto val = instr->get_operand(0);
+                                instr->replace_all_use_with(val);
+                                wait_delete.push_back(instr);
+                                flag = 1;
+                            }
+                        }
+                    }
+                    for (auto instr : wait_delete) //删除无法到达的块
+                    {
+                        bb->delete_instr(instr);
+                    }
+                    wait_delete.clear();
+                }
+            }
+            if(flag)//删除phi指令后，可能会给常量传播带来新的的机会，递归处理
+            {
+                run();
+            }
+            else return;
+            return;
+        ```
+    
+    *  在子函数中对数组和全局变量重新赋值的问题
+    
+      *  如果在子函数中对数组元素和全局变量重新赋值，就无法再进行其的常量传播，因为其值在子函数中已经改变，采用的是记录全局变量被定值函数的个数，大于1则不进行传播。
+    
+        ```c++
+        int ConstPropagation::global_def_func() //得到全局变量被定值的函数个数
+        {
+            for (auto func : m_->get_functions())
+            {
+                for (auto bb : func->get_basic_blocks())
+            {
+                    for (auto instr : bb->get_instructions())
+                {
+                        if (instr->is_store())
+                    {
+                            auto val1 = dynamic_cast<StoreInst *>(instr)->get_lval();
+                            auto globalval = dynamic_cast<GlobalVariable *>(val1);
+                            if (globalval)
+                            {
+                                if (global_def_call.find(globalval) == global_def_call.end())
+                                {
+                                    global_def_call.insert({globalval, {1, func}});
+                                }
+                                else if (global_def_call.find(globalval)->second.second != func)
+                                {
+                                    global_def_call.find(globalval)->second.first++;
+                                    global_def_call.find(globalval)->second.second = func;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        ```
+    
+        
+    
     优化前后：
-
+    
     * cminus代码
-
+    
       ```c
       int a;
       void main(void){
@@ -325,18 +399,18 @@
            i = i + 1;
           }
           output(a);
-          output(b);
+      output(b);
           output(c);
-          outputFloat(d);
+      outputFloat(d);
           outputFloat(e);
-          return ;
+      return ;
       }
       ```
-
+    
       
-
+    
     * 优化前
-
+    
       ```c
       @a = global i32 zeroinitializer
       declare i32 @input()
@@ -400,11 +474,11 @@
         br label %label36
       }
       ```
-
+    
       
-
+    
     * 优化后（**分析见注释**）
-
+    
       ```c
       @a = global i32 zeroinitializer
       declare i32 @input()
