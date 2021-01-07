@@ -51,6 +51,7 @@ public:
         FLOAT_T = Type::get_float_type(m);
     }
     void run();
+    void CompressPath(Function *func);
     int global_def_func(); //全局变量在其他子函数被定值，就不能再传播
 
 private:
