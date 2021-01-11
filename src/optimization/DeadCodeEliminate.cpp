@@ -1,24 +1,96 @@
-#include "DeadCodeEliminate.hpp"
-//#define DEBUG
-void DeadCodeEliminate::run()
+#include "DeadCodeDelete.hpp"
+#define DEBUG
+void DeadCodeDelete::run()
 {
   deleteDeadFunc(m_);
-  InitSideEffectFunc(m_);
+  InitSets(m_);
   for (auto func : m_->get_functions())
   {
     if (!is_main(func))
       deleteDeadRet(func);
+  }
+  for (auto func : m_->get_functions())
+  {
+    deleteDeadInst(func);
+    //CompressPath(func);
+    deleteDeadStore(func);
+    deleteDeadInst(func);
+  }
+  for (auto func : m_->get_functions())
+    DeleteFuncDeadArg(func);
+  for (auto func : m_->get_functions())
+    deleteDeadInst(func);
+  deleteDeadFunc(m_);
+}
 
-    for (auto func : m_->get_functions())
+void DeadCodeDelete::DeleteFuncDeadArg(Function *func)
+{
+  if (func->get_num_basic_blocks() == 0)
+    return;
+  int i = 1;
+  auto func_use = func->get_use_list();
+  for (auto arg : func->get_args())
+  {
+    if (arg->get_use_list().empty())
     {
-      deleteDeadInst(func);
-      deleteDeadStore(func);
-      deleteDeadInst(func);
+      auto arg_type = arg->get_type();
+      if (arg_type->is_integer_type())
+      {
+        for (auto use : func_use)
+        {
+          auto instr = dynamic_cast<Instruction *>(use.val_);
+          instr->set_operand(i, ConstantInt::get(0, m_));
+        }
+      }
+      else if (arg_type->is_float_type())
+      {
+        for (auto use : func_use)
+        {
+          auto instr = dynamic_cast<Instruction *>(use.val_);
+          instr->set_operand(i, ConstantFP::get(0, m_));
+        }
+      }
     }
+    i++;
   }
 }
 
-bool DeadCodeEliminate::isLocalStore(StoreInst *store)
+void DeadCodeDelete::CompressPath(Function *func)
+{
+  std::set<BasicBlock *> wait_merge;
+  for (auto BB : func->get_basic_blocks())
+  {
+    if (BB->get_pre_basic_blocks().size() == 1)
+    {
+      auto preBB = *(BB->get_pre_basic_blocks().begin());
+      if (preBB->get_succ_basic_blocks().size() == 1)
+        wait_merge.insert(BB);
+    }
+  }
+  for (auto BB : wait_merge)
+  {
+    auto preBB = *(BB->get_pre_basic_blocks().begin());
+    auto br_ins = preBB->get_terminator();
+    if (br_ins->is_br())
+      preBB->delete_instr(br_ins);
+    for (auto instr : BB->get_instructions())
+      preBB->add_instruction(instr);
+    preBB->remove_succ_basic_block(BB);
+    BB->remove_pre_basic_block(preBB);
+    auto succBB_list = BB->get_succ_basic_blocks();
+    for (auto succBB : succBB_list)
+    {
+      // succBB->remove_pre_basic_block(BB);
+      // BB->remove_succ_basic_block(succBB);
+      succBB->add_pre_basic_block(preBB);
+      preBB->add_succ_basic_block(succBB);
+    }
+    BB->replace_all_use_with(preBB);
+    func->remove(BB);
+  }
+}
+
+bool DeadCodeDelete::isLocalStore(StoreInst *store)
 {
   auto l_val = store->get_lval();
   if (dynamic_cast<GlobalVariable *>(l_val))
@@ -40,7 +112,7 @@ bool DeadCodeEliminate::isLocalStore(StoreInst *store)
   }
 }
 
-bool DeadCodeEliminate::isArgArrayStore(StoreInst *store)
+bool DeadCodeDelete::isArgArrayStore(StoreInst *store)
 {
   auto l_val = store->get_lval();
   if (dynamic_cast<GlobalVariable *>(l_val))
@@ -64,7 +136,7 @@ bool DeadCodeEliminate::isArgArrayStore(StoreInst *store)
   }
 }
 
-bool DeadCodeEliminate::isGlobalArgArrayPtr(Value *val)
+bool DeadCodeDelete::isGlobalArgArrayPtr(Value *val)
 {
   if (dynamic_cast<GlobalVariable *>(val))
     return false;
@@ -87,13 +159,16 @@ bool DeadCodeEliminate::isGlobalArgArrayPtr(Value *val)
   }
 }
 
-void DeadCodeEliminate::InitSideEffectFunc(Module *m)
+void DeadCodeDelete::InitSets(Module *m)
 {
   std::set<std::pair<CallInst *, Function *>> call_list;
   for (auto func : m->get_functions())
   {
     if (func->get_num_basic_blocks() == 0 || is_main(func))
+    {
+      SideEffectFunc.insert(func);
       continue;
+    }
     bool side_effect = false;
     for (auto bb : func->get_basic_blocks())
     {
@@ -145,7 +220,7 @@ void DeadCodeEliminate::InitSideEffectFunc(Module *m)
   }
 }
 
-void DeadCodeEliminate::deleteDeadFunc(Module *m)
+void DeadCodeDelete::deleteDeadFunc(Module *m)
 {
   auto func_list = m->get_functions();
   auto changed = true;
@@ -185,8 +260,8 @@ void DeadCodeEliminate::deleteDeadFunc(Module *m)
   }
 }
 
-void DeadCodeEliminate::markUse(Instruction *inst,
-                                std::unordered_set<Instruction *> &worklist)
+void DeadCodeDelete::CompleteWorklist(Instruction *inst,
+                                      std::unordered_set<Instruction *> &worklist)
 {
   if (worklist.find(inst) != worklist.end())
     return;
@@ -195,17 +270,17 @@ void DeadCodeEliminate::markUse(Instruction *inst,
   {
     auto op_inst = dynamic_cast<Instruction *>(op);
     if (op_inst)
-      markUse(op_inst, worklist);
+      CompleteWorklist(op_inst, worklist);
   }
 }
 
-void DeadCodeEliminate::deleteDeadInst(Function *func)
+void DeadCodeDelete::deleteDeadInst(Function *func)
 {
   std::unordered_set<Instruction *> worklist;
   for (auto bb : func->get_basic_blocks())
     for (auto inst : bb->get_instructions())
       if (isSideEffect(inst))
-        markUse(inst, worklist);
+        CompleteWorklist(inst, worklist);
 
   for (auto bb : func->get_basic_blocks())
   {
@@ -218,9 +293,11 @@ void DeadCodeEliminate::deleteDeadInst(Function *func)
   }
 }
 
-void DeadCodeEliminate::deleteDeadRet(Function *func)
+void DeadCodeDelete::deleteDeadRet(Function *func)
 {
   bool flag = true;
+  if (func->get_function_type()->get_return_type()->is_void_type())
+    return;
   for (auto use : func->get_use_list())
   {
     if (!use.val_->get_use_list().empty())
@@ -231,21 +308,23 @@ void DeadCodeEliminate::deleteDeadRet(Function *func)
   }
   if (flag)
   {
+    auto ret_type = func->get_function_type()->get_return_type();
     for (auto bb : func->get_basic_blocks())
     {
-      for (auto instr : bb->get_instructions())
+      auto instr = bb->get_terminator();
+      if (instr->is_ret() && instr->get_num_operand() == 1)
       {
-        if (instr->is_ret() && instr->get_num_operand() == 1)
-        {
-          instr->remove_use_of_ops();
+        instr->remove_use_of_ops();
+        if (ret_type->is_integer_type())
           instr->set_operand(0, ConstantInt::get(0, m_));
-        }
+        else if (ret_type->is_float_type())
+          instr->set_operand(0, ConstantFP::get(0, m_));
       }
     }
   }
 }
 
-bool DeadCodeEliminate::isEqualFirstPtr(Value *ptr1, Value *ptr2)
+bool DeadCodeDelete::isEqualFirstPtr(Value *ptr1, Value *ptr2)
 {
   if (ptr1 == ptr2)
     return true;
@@ -253,14 +332,16 @@ bool DeadCodeEliminate::isEqualFirstPtr(Value *ptr1, Value *ptr2)
   {
     auto instr1 = dynamic_cast<Instruction *>(ptr1);
     auto instr2 = dynamic_cast<Instruction *>(ptr2);
-    if (!instr1->is_gep() || !instr2->is_gep())
+    if (!instr1 || !instr2)
+      return false;
+    if(!instr1->is_gep() || !instr2->is_gep() )
       return false;
     else
       return instr1->get_operand(0) == instr2->get_operand(0);
   }
 }
 
-bool DeadCodeEliminate::isEqualIntr(Instruction *instr1, Instruction *instr2)
+bool DeadCodeDelete::isEqualGep(Instruction *instr1, Instruction *instr2)
 {
   if (instr1->get_num_operand() != instr2->get_num_operand())
     return false;
@@ -268,15 +349,28 @@ bool DeadCodeEliminate::isEqualIntr(Instruction *instr1, Instruction *instr2)
   {
     for (int i = 0; i < instr1->get_num_operand(); i++)
     {
-      if (instr1->get_operand(i) != instr2->get_operand(i))
-        return false;
+      auto op_1 = instr1->get_operand(i);
+      auto op_2 = instr2->get_operand(i);
+      if (op_1 == op_2)
+        continue;
+      else
+      {
+        auto op1_const = dynamic_cast<ConstantInt *>(op_1);
+        auto op2_const = dynamic_cast<ConstantInt *>(op_2);
+
+        if (!op1_const  || !op2_const )
+          return false;
+        else if (op1_const->get_value() != op2_const->get_value())
+          return false;
+      }
     }
   }
+  return true;
 }
 
-void DeadCodeEliminate::dealStore(StoreInst *store, std::unordered_set<StoreInst *> &pre_stores,
-                                  std::unordered_set<LoadInst *> &pre_loads,
-                                  std::vector<Instruction *> &wait_remove)
+void DeadCodeDelete::dealStore(StoreInst *store, std::unordered_set<StoreInst *> &pre_stores,
+                               std::unordered_set<LoadInst *> &pre_loads,
+                               std::vector<Instruction *> &wait_remove)
 {
   auto l_val = store->get_lval();
   StoreInst *pre_store = nullptr;
@@ -332,7 +426,7 @@ void DeadCodeEliminate::dealStore(StoreInst *store, std::unordered_set<StoreInst
     pre_loads.erase(pre);
 }
 
-void DeadCodeEliminate::deleteDeadStore(Function *func)
+void DeadCodeDelete::deleteDeadStore(Function *func)
 {
   for (auto bb : func->get_basic_blocks())
   {
@@ -344,18 +438,18 @@ void DeadCodeEliminate::deleteDeadStore(Function *func)
     {
       if (instr->is_gep())
       {
-        auto flag = false;
+        auto gep_flag = false;
         for (auto pre : pre_geps)
         {
-          if (isEqualIntr(pre, instr))
+          if (isEqualGep(pre, instr))
           {
             wait_remove.push_back(instr);
             instr->replace_all_use_with(pre);
-            flag = true;
+            gep_flag = true;
             break;
           }
         }
-        if (!flag)
+        if (!gep_flag)
           pre_geps.insert(instr);
       }
       else if (instr->is_store())
