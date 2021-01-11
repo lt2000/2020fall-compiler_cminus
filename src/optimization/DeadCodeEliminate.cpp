@@ -1,4 +1,4 @@
-#include "DeadCodeDelete.hpp"
+#include "DeadCodeEliminate.hpp"
 #define DEBUG
 void DeadCodeDelete::run()
 {
