@@ -1,19 +1,18 @@
-#ifndef SYSYC_DEADCODEELIMATE_H
-#define SYSYC_DEADCODEELIMATE_H
+#ifndef DEADCODEDELETE_HPP
+#define DEADCODEDELETE_HPP
 #include "logging.hpp"
 #include "PassManager.hpp"
 #include <unordered_map>
 #include <unordered_set>
 
-class DeadCodeEliminate : public Pass
+class DeadCodeDelete : public Pass
 {
 public:
-  DeadCodeEliminate(Module *m) : Pass(m) {}
+  DeadCodeDelete(Module *m) : Pass(m) {}
   void run() override;
 
-  bool isEqualIntr(Instruction *instr1, Instruction *instr2);
+  bool isEqualGep(Instruction *instr1, Instruction *instr2);
   bool isEqualFirstPtr(Value *ptr1, Value *ptr2);
-  bool isDeadInstruction(Instruction *inst);
   bool isLocalStore(StoreInst *store);
   bool isArgArrayStore(StoreInst *store);
   bool isGlobalArgArrayPtr(Value *val);
@@ -22,7 +21,13 @@ public:
                  std::vector<Instruction *> &wait_remove);
   bool isSideEffect(Instruction *instr)
   {
-    return (instr->is_call() || instr->is_void());
+    if(instr->is_call())
+    {
+      auto op_0 = instr->get_operand(0);
+      auto callfunc = dynamic_cast<Function *>(op_0);
+      return SideEffectFunc.find(callfunc) != SideEffectFunc.end();
+    }
+    return instr->is_void();
   }
   bool isSideEffectFunc(Function *func)
   {
@@ -61,16 +66,17 @@ public:
     return func->get_name() == "main";
   }
 
-  void InitSideEffectFunc(Module *m);
-
+  
+  void InitSets(Module *m);
   void deleteDeadFunc(Module *m);
   void deleteDeadInst(Function *func);
   void deleteDeadRet(Function *func);
   void deleteDeadStore(Function *func);
-
-  void markUse(Instruction *inst, std::unordered_set<Instruction *> &worklist);
-
+  void DeleteFuncDeadArg(Function * func);
+  void CompleteWorklist(Instruction *inst, std::unordered_set<Instruction *> &worklist);
+  void CompressPath(Function *func);
 private:
   std::unordered_set<Function *> SideEffectFunc;
 };
-#endif // SYSYC_DEADCODEELIMATE_H
+
+#endif
