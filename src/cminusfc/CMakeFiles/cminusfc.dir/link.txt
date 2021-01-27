@@ -1,1 +1,1 @@
-/usr/bin/c++  -g  -rdynamic CMakeFiles/cminusfc.dir/cminusfc.cpp.o CMakeFiles/cminusfc.dir/cminusf_builder.cpp.o  -o ../../cminusfc  ../../libsyntax.a ../../libcommon.a ../../libIR_lib.a 
+/usr/bin/c++  -g  -rdynamic CMakeFiles/cminusfc.dir/cminusfc.cpp.o CMakeFiles/cminusfc.dir/cminusf_builder.cpp.o  -o ../../cminusfc  ../../libOP_lib.a ../../libIR_lib.a ../../libcommon.a ../../libsyntax.a 

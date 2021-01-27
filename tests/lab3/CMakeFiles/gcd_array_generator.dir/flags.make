@@ -6,5 +6,5 @@ CXX_FLAGS = -g   -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -
 
 CXX_DEFINES = 
 
-CXX_INCLUDES = -I/home/cp/2020fall-Compiler_CMinus/include -I/home/cp/llvm-install/include -I/home/cp/2020fall-Compiler_CMinus -I/home/cp/2020fall-Compiler_CMinus/include/lightir 
+CXX_INCLUDES = -I/home/cp/2020fall-Compiler_CMinus/include -I/home/cp/llvm-install/include -I/home/cp/2020fall-Compiler_CMinus -I/home/cp/2020fall-Compiler_CMinus/include/lightir -I/home/cp/2020fall-Compiler_CMinus/include/optimization 
 

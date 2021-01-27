@@ -45,6 +45,7 @@ if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   include("/home/cp/2020fall-Compiler_CMinus/src/common/cmake_install.cmake")
   include("/home/cp/2020fall-Compiler_CMinus/src/lightir/cmake_install.cmake")
   include("/home/cp/2020fall-Compiler_CMinus/src/cminusfc/cmake_install.cmake")
+  include("/home/cp/2020fall-Compiler_CMinus/src/optimization/cmake_install.cmake")
 
 endif()
 

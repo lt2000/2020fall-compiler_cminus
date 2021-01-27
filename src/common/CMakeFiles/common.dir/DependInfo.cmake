@@ -15,6 +15,7 @@ set(CMAKE_C_TARGET_INCLUDE_PATH
   "/home/cp/llvm-install/include"
   "."
   "include/lightir"
+  "include/optimization"
   )
 set(CMAKE_DEPENDS_CHECK_CXX
   "/home/cp/2020fall-Compiler_CMinus/src/common/ast.cpp" "/home/cp/2020fall-Compiler_CMinus/src/common/CMakeFiles/common.dir/ast.cpp.o"
@@ -28,6 +29,7 @@ set(CMAKE_CXX_TARGET_INCLUDE_PATH
   "/home/cp/llvm-install/include"
   "."
   "include/lightir"
+  "include/optimization"
   )
 
 # Targets to which this target links.

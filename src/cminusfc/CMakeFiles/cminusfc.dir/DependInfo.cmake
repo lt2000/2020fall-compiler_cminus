@@ -15,13 +15,15 @@ set(CMAKE_CXX_TARGET_INCLUDE_PATH
   "/home/cp/llvm-install/include"
   "."
   "include/lightir"
+  "include/optimization"
   )
 
 # Targets to which this target links.
 set(CMAKE_TARGET_LINKED_INFO_FILES
-  "/home/cp/2020fall-Compiler_CMinus/src/parser/CMakeFiles/syntax.dir/DependInfo.cmake"
-  "/home/cp/2020fall-Compiler_CMinus/src/common/CMakeFiles/common.dir/DependInfo.cmake"
+  "/home/cp/2020fall-Compiler_CMinus/src/optimization/CMakeFiles/OP_lib.dir/DependInfo.cmake"
   "/home/cp/2020fall-Compiler_CMinus/src/lightir/CMakeFiles/IR_lib.dir/DependInfo.cmake"
+  "/home/cp/2020fall-Compiler_CMinus/src/common/CMakeFiles/common.dir/DependInfo.cmake"
+  "/home/cp/2020fall-Compiler_CMinus/src/parser/CMakeFiles/syntax.dir/DependInfo.cmake"
   )
 
 # Fortran module output directory.

@@ -23,6 +23,7 @@ set(CMAKE_CXX_TARGET_INCLUDE_PATH
   "/home/cp/llvm-install/include"
   "."
   "include/lightir"
+  "include/optimization"
   )
 
 # Targets to which this target links.

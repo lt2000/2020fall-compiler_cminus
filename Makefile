@@ -248,6 +248,19 @@ cminusfc/fast:
 .PHONY : cminusfc/fast
 
 #=============================================================================
+# Target rules for targets named OP_lib
+
+# Build rule for target.
+OP_lib: cmake_check_build_system
+	$(MAKE) -f CMakeFiles/Makefile2 OP_lib
+.PHONY : OP_lib
+
+# fast build rule for target.
+OP_lib/fast:
+	$(MAKE) -f src/optimization/CMakeFiles/OP_lib.dir/build.make src/optimization/CMakeFiles/OP_lib.dir/build
+.PHONY : OP_lib/fast
+
+#=============================================================================
 # Target rules for targets named test_logging
 
 # Build rule for target.
@@ -383,6 +396,7 @@ help:
 	@echo "... common"
 	@echo "... IR_lib"
 	@echo "... cminusfc"
+	@echo "... OP_lib"
 	@echo "... test_logging"
 	@echo "... test_ast"
 	@echo "... lexer"

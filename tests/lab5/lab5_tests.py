@@ -5,7 +5,11 @@ import argparse
 import re
 import time
 import glob
-import json5
+try:
+    import json5
+except Exception as _:
+    os.system("apt install -y python3-json5 || python3 -m pip install json5")
+    import json5
 try:
     from tqdm import tqdm
 except Exception as _:

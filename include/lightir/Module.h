@@ -28,7 +28,7 @@ public:
 
     PointerType *get_pointer_type(Type *contained);
     ArrayType *get_array_type(Type *contained, unsigned num_elements);
-
+    void remove_function(Function *f) { function_list_.remove(f); }
     void add_function(Function *f);
     std::list<Function* > get_functions();
     void add_global_variable(GlobalVariable* g);

@@ -53,6 +53,13 @@
 /home/cp/2020fall-Compiler_CMinus/src/cminusfc/CMakeFiles/rebuild_cache.dir
 /home/cp/2020fall-Compiler_CMinus/src/cminusfc/CMakeFiles/edit_cache.dir
 /home/cp/2020fall-Compiler_CMinus/src/cminusfc/CMakeFiles/cminusfc.dir
+/home/cp/2020fall-Compiler_CMinus/src/optimization/CMakeFiles/install/strip.dir
+/home/cp/2020fall-Compiler_CMinus/src/optimization/CMakeFiles/install/local.dir
+/home/cp/2020fall-Compiler_CMinus/src/optimization/CMakeFiles/edit_cache.dir
+/home/cp/2020fall-Compiler_CMinus/src/optimization/CMakeFiles/install.dir
+/home/cp/2020fall-Compiler_CMinus/src/optimization/CMakeFiles/list_install_components.dir
+/home/cp/2020fall-Compiler_CMinus/src/optimization/CMakeFiles/rebuild_cache.dir
+/home/cp/2020fall-Compiler_CMinus/src/optimization/CMakeFiles/OP_lib.dir
 /home/cp/2020fall-Compiler_CMinus/tests/CMakeFiles/install/strip.dir
 /home/cp/2020fall-Compiler_CMinus/tests/CMakeFiles/install/local.dir
 /home/cp/2020fall-Compiler_CMinus/tests/CMakeFiles/install.dir

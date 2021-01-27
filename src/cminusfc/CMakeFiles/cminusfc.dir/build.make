@@ -94,9 +94,10 @@ cminusfc_EXTERNAL_OBJECTS =
 cminusfc: src/cminusfc/CMakeFiles/cminusfc.dir/cminusfc.cpp.o
 cminusfc: src/cminusfc/CMakeFiles/cminusfc.dir/cminusf_builder.cpp.o
 cminusfc: src/cminusfc/CMakeFiles/cminusfc.dir/build.make
-cminusfc: libsyntax.a
-cminusfc: libcommon.a
+cminusfc: libOP_lib.a
 cminusfc: libIR_lib.a
+cminusfc: libcommon.a
+cminusfc: libsyntax.a
 cminusfc: src/cminusfc/CMakeFiles/cminusfc.dir/link.txt
 	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --green --bold --progress-dir=/home/cp/2020fall-Compiler_CMinus/CMakeFiles --progress-num=$(CMAKE_PROGRESS_3) "Linking CXX executable ../../cminusfc"
 	cd /home/cp/2020fall-Compiler_CMinus/src/cminusfc && $(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/cminusfc.dir/link.txt --verbose=$(VERBOSE)

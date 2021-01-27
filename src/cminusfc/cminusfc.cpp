@@ -7,6 +7,7 @@
 #include "LoopInvHoist.hpp"
 #include "ActiveVars.hpp"
 #include "ConstPropagation.hpp"
+#include  "CommonSubExper.hpp"
 #include <iostream>
 #include <fstream>
 #include <memory>
@@ -15,7 +16,7 @@ using namespace std::literals::string_literals;
 
 void print_help(std::string exe_name) {
     std::cout << "Usage: " << exe_name <<
-        " [ -h | --help ] [ -o <target-file> ] [ -emit-llvm ] [-mem2reg] [-loop-search] [-loop-inv-hoist] [-const-propagation] [-active-vars] [-analyze] <input-file>" << std::endl;
+        " [ -h | --help ] [ -o <target-file> ] [ -emit-llvm ] [-mem2reg] [-loop-search] [-loop-inv-hoist] [-const-propagation] [-active-vars] [-analyze] [-common-sub-exper] <input-file>" << std::endl;
 }
 
 int main(int argc, char **argv) {
@@ -28,6 +29,7 @@ int main(int argc, char **argv) {
     bool activevars = false;
     bool loop_inv_hoist = false;
     bool loop_search = false;
+    bool common_sub_exper = false;
 
     for (int i = 1;i < argc;++i) {
         if (argv[i] == "-h"s || argv[i] == "--help"s) {
@@ -55,7 +57,10 @@ int main(int argc, char **argv) {
             const_propagation = true;
         } else if (argv[i] == "-active-vars"s) {
             activevars = true;
-        } else {
+        } else if(argv[i] == "-common-sub-exper"s)
+        { 
+            common_sub_exper = true;
+        } else{
             if (input_path.empty()) {
                 input_path = argv[i];
             } else {
@@ -116,6 +121,10 @@ int main(int argc, char **argv) {
     if( loop_inv_hoist )
     {
         PM.add_pass<LoopInvHoist>(true);
+    }
+    if(common_sub_exper)
+    {
+        PM.add_pass<CommonSubExper>(true);
     }
     PM.run();
     
